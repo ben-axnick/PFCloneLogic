@@ -39,6 +39,18 @@ namespace PushFightLogic
       public PieceType type {get; set;}
       public Player owner {get; set;}
    }
+	
+   public struct GameBoard
+	{
+		public GameTile[] tiles;
+		public GameToken[] tokens;
+	}
+	
+   public struct GameTile
+	{
+		public Coords location {get; set;}
+		public BoardSquareType type {get; set;}
+	}
 
    public interface GameControls
    {
@@ -48,6 +60,8 @@ namespace PushFightLogic
       void Skip();
       Coords[] ValidMoves(Coords location);
       Coords[] ValidPushes(Coords location);
+		GameBoard ViewBoard();
+		string Phase();
    }
    
    public class TurnState : GameControls
@@ -66,7 +80,12 @@ namespace PushFightLogic
          Map = new UnityBoardMap(Board);
          FriendlyName = "Default";
       }
-
+	  
+	  public string Phase ()
+		{
+			return FriendlyName;	
+		}
+		
       public virtual bool Place(PieceType piece, Coords location)
       {
          return false; // don't respond to terrorists
@@ -86,7 +105,33 @@ namespace PushFightLogic
       {
          // ignore by default
       }
-
+		
+	  public GameBoard ViewBoard ()
+		{
+			GameBoard rtn = new GameBoard ();
+			rtn.tiles = new GameTile[Board.Squares.Length];
+			var iterator = Board.Squares.GetEnumerator ();
+			
+			for (int i = 0; i < Board.Squares.Length; i++) {
+				BoardSquare tile = iterator.Current as BoardSquare;
+				rtn.tiles [i] = new GameTile (){
+					location = new Coords(){x = tile.PosX, y = tile.PosY},
+					type = tile.Type};
+				iterator.MoveNext ();
+			}
+			
+			rtn.tokens = new GameToken[Board.Pieces.Count];
+			int j = 0;
+			foreach (Piece piece in Board.Pieces.Values) {
+				rtn.tokens [j] = new GameToken () {
+					location = new Coords() {x = piece.Occupies.PosX, y = piece.Occupies.PosY},
+					owner = piece.Owner};
+				j++;
+			}
+			
+			return rtn;
+	  }
+		
       public Coords[] ValidMoves(Coords location)
       {
          return CheckMovesByOwner(location, (piece) => piece.CheckMoves());
@@ -299,7 +344,7 @@ namespace PushFightLogic
       void GameOver(Player winner);
    }
 
-   class GameMaster : TurnListener
+   public class GameMaster : TurnListener
    {
       private List<GameListener> Listeners = new List<GameListener>();
 
@@ -313,9 +358,9 @@ namespace PushFightLogic
       public GameTurn currentTurn {get; private set;}
       public int round {get; private set;}
 
-      public GameMaster()
+      public GameMaster ()
       {
-         Reset();
+			Reset ();
       }
 
       public void Reset()
