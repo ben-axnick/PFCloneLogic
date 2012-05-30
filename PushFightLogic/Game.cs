@@ -111,7 +111,7 @@ namespace PushFightLogic
 			GameBoard rtn = new GameBoard ();
 			rtn.tiles = new GameTile[Board.Squares.Length];
 			var iterator = Board.Squares.GetEnumerator ();
-			
+			iterator.MoveNext();
 			for (int i = 0; i < Board.Squares.Length; i++) {
 				BoardSquare tile = iterator.Current as BoardSquare;
 				rtn.tiles [i] = new GameTile (){
@@ -296,8 +296,9 @@ namespace PushFightLogic
       private TurnState State;
       private List<TurnListener> Listeners = new List<TurnListener>();
 
-      public GameTurn(Player player, int roundNo)
+      public GameTurn(Board board, Player player, int roundNo)
       {
+         Board = board;
          TurnPlayer = player;
          Listeners.ForEach(listener => listener.TurnBegin(TurnPlayer));
 
@@ -369,7 +370,7 @@ namespace PushFightLogic
          round = 0;
          roundStarter = (Player) Enum.GetValues(typeof (Player)).GetValue(new Random().Next(0, 1));
 
-         currentTurn = new GameTurn(roundStarter, round);
+         currentTurn = new GameTurn(board,roundStarter, round);
          currentTurn.Subscribe(this);
       }
 
@@ -400,12 +401,12 @@ namespace PushFightLogic
 
          if (currentTurn.TurnPlayer == roundStarter)
          {
-            currentTurn = new GameTurn(otherPlayer, round);
+            currentTurn = new GameTurn(board,otherPlayer, round);
          }
          else
          {
             round++;
-            currentTurn = new GameTurn(roundStarter, round);
+            currentTurn = new GameTurn(board,roundStarter, round);
          }
       }
 
