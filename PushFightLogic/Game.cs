@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using SeeSharpMessenger;
 
 namespace PushFightLogic
 {
@@ -13,37 +14,21 @@ namespace PushFightLogic
          Board = board;
       }
 
-      public BoardSquare Square(Coords coords)
-      {
-         foreach (BoardSquare square in Board.Squares)
-         {
-            if (square.PosX == coords.x && square.PosY == coords.y)
-            {
-               return square;
-            }
+      public BoardSquare Square (Coords coords)
+		{
+			foreach (BoardSquare square in Board.Squares) {
+				if (square.Pos.Equals (coords))
+					return square;
          }
 
          return null;
       }
    }
-
-   public struct Coords
-   {
-      public int x {get; set;}
-      public int y {get; set;}
-   }
-
-   public struct GameToken
-   {
-      public Coords location {get; set;}
-      public PieceType type {get; set;}
-      public Player owner {get; set;}
-   }
 	
    public struct GameBoard
 	{
-		public GameTile[] tiles;
-		public GameToken[] tokens;
+		public List<GameTile> tiles;
+		public List<GameToken> tokens;
 	}
 	
    public struct GameTile
@@ -58,18 +43,14 @@ namespace PushFightLogic
       bool Move(Coords piece, Coords target);
       bool Push(Coords piece, Coords target);
       void Skip();
-      Coords[] ValidMoves(Coords location);
-      Coords[] ValidPushes(Coords location);
-		GameBoard ViewBoard();
-		string Phase();
    }
    
    public class TurnState : GameControls
    {
       protected GameTurn Context {get; private set;}
-      protected UnityBoardMap Map { get; private set; }
       protected Player Controller { get; private set; }
       protected Board Board { get; private set; }
+		protected UnityBoardMap Map {get; private set;}
       public String FriendlyName {get; protected set; }
 
       public TurnState(GameTurn context)
@@ -80,11 +61,6 @@ namespace PushFightLogic
          Map = new UnityBoardMap(Board);
          FriendlyName = "Default";
       }
-	  
-	  public string Phase ()
-		{
-			return FriendlyName;	
-		}
 		
       public virtual bool Place(PieceType piece, Coords location)
       {
@@ -104,73 +80,6 @@ namespace PushFightLogic
       public virtual void Skip()
       {
          // ignore by default
-      }
-		
-	  public GameBoard ViewBoard ()
-		{
-			GameBoard rtn = new GameBoard ();
-			rtn.tiles = new GameTile[Board.Squares.Length];
-			var iterator = Board.Squares.GetEnumerator ();
-			iterator.MoveNext();
-			for (int i = 0; i < Board.Squares.Length; i++) {
-				BoardSquare tile = iterator.Current as BoardSquare;
-				rtn.tiles [i] = new GameTile (){
-					location = new Coords(){x = tile.PosX, y = tile.PosY},
-					type = tile.Type};
-				iterator.MoveNext ();
-			}
-			
-			rtn.tokens = new GameToken[Board.Pieces.Count];
-			int j = 0;
-			foreach (Piece piece in Board.Pieces.Values) {
-				rtn.tokens [j] = new GameToken () {
-					location = new Coords() {x = piece.Occupies.PosX, y = piece.Occupies.PosY},
-					owner = piece.Owner};
-				j++;
-			}
-			
-			return rtn;
-	  }
-		
-      public Coords[] ValidMoves(Coords location)
-      {
-         return CheckMovesByOwner(location, (piece) => piece.CheckMoves());
-      }
-
-      public Coords[] ValidPushes(Coords location)
-      {
-         return CheckMovesByOwner(location, (piece) => piece.Push.CheckPushes());
-      }
-
-      private Coords[] CheckMovesByOwner(Coords location, Func<Piece,List<BoardSquare>> checkMoves)
-      {
-         BoardSquare square = Map.Square(location);
-
-         if (!Board.Pieces.ContainsKey(square))
-         {
-            return new Coords[] { };
-         }
-         else
-         {
-            Piece piece = Board.Pieces[square];
-
-            if (piece.Owner != Controller)
-            {
-               return new Coords[] { };
-            }
-            else
-            {
-               var moves = checkMoves(piece);
-               Coords[] rtn = new Coords[moves.Count];
-
-               for (int i = 0; i < rtn.Length; i++)
-               {
-                  rtn[i] = new Coords() { x = moves[i].PosX, y = moves[i].PosY };
-               }
-
-               return rtn;
-            }
-         }
       }
    }
 
@@ -234,7 +143,7 @@ namespace PushFightLogic
       public override bool Move(Coords piece, Coords target)
       {
          bool success;
-         if (ValidMoves(piece).Length == 0)
+         if (Context.ValidMoves(piece).Count == 0)
             success = false;
          else
          {
@@ -263,7 +172,7 @@ namespace PushFightLogic
       public override bool Push(Coords piece, Coords target)
       {
          bool success;
-         if (ValidPushes(piece).Length == 0)
+         if (Context.ValidPushes(piece).Count == 0)
             success = false;
          else
          {
@@ -273,151 +182,191 @@ namespace PushFightLogic
          }
 
          if (success) pushes++;
-         if (pushes >= GameMaster.PUSHES_PER_TURN) Context.SwapState(new PushPieceState(Context));
+         if (pushes >= GameMaster.PUSHES_PER_TURN) Context.SwapState(new TurnFinishedState(Context));
 
          return success;
       }
 
-      public override void Skip()
-      {
+      public override void Skip ()
+		{
+			Board.TheAnchor.Reset();
          Context.SwapState(new TurnFinishedState(Context));
       }
    }
 
    public class TurnFinishedState : TurnState
    {
-      public TurnFinishedState(GameTurn context) : base(context) { }
+      public TurnFinishedState (GameTurn context) : base(context)
+		{
+			FriendlyName = "Ended";
+		}
    }
 
    public class GameTurn
    {
+		private Action OnTurnEnded;
+		private GameMaster Parent {get; set;}
+      protected UnityBoardMap Map { get; private set; }
       public Player TurnPlayer {get; private set;}
       public Board Board { get; private set; }
       private TurnState State;
-      private List<TurnListener> Listeners = new List<TurnListener>();
-
-      public GameTurn(Board board, Player player, int roundNo)
-      {
-         Board = board;
-         TurnPlayer = player;
-         Listeners.ForEach(listener => listener.TurnBegin(TurnPlayer));
-
-         if (roundNo == 0)
-            SwapState(new PlacementTurnState(this));
-         else
-            SwapState(new MovePieceState(this));
+	  private int RoundNo;
+	  	
+      public GameTurn (Action action, Board board, Player player, int roundNo)
+		{
+			OnTurnEnded = action;
+			Board = board;
+			Map = new UnityBoardMap (board);
+			TurnPlayer = player;
+			RoundNo = roundNo;
       }
+		
+		public void Begin ()
+		{
+			if (RoundNo == 0)
+				SwapState (new PlacementTurnState (this));
+			else
+				SwapState (new MovePieceState (this));
+			
+			Messenger<Player>.Invoke ("turn.begin", TurnPlayer);
+		}
+		
+      public void SwapState (TurnState newState)
+		{
+			State = newState;
 
-      public void SwapState(TurnState newState)
-      {
-         State = newState;
-
-         if (State.GetType() == typeof (TurnFinishedState))
-         {
-            Listeners.ForEach(listener => listener.TurnOver());
-         }
-         else
-         {
-            Listeners.ForEach(listener => listener.ChangedPhase(State.FriendlyName));
-         }
+			Messenger<Player,string>.Invoke ("turn.phase", TurnPlayer, State.FriendlyName);
+			if (State.GetType () == typeof(TurnFinishedState))
+				OnTurnEnded ();
       }
 
       public GameControls Control()
       {
          return State;
       }
-
-      public void Subscribe(TurnListener listener)
+		
+	  public string Phase ()
+		{
+			return State.FriendlyName;	
+		}
+      public List<Coords> ValidMoves(Coords location)
       {
-         Listeners.Add(listener);
+         return CheckMovesByOwner(location, (piece) => piece.CheckMoves());
+      }
+
+      public List<Coords> ValidPushes(Coords location)
+      {
+         return CheckMovesByOwner(location, (piece) => piece.Push.CheckPushes());
+      }
+
+      private List<Coords> CheckMovesByOwner (Coords location, Func<Piece,List<BoardSquare>> checkMoves)
+		{
+			BoardSquare square = Map.Square (location);
+
+			if (!Board.Pieces.ContainsKey (square)) {
+				return new List<Coords> ();
+			} else {
+				Piece piece = Board.Pieces [square];
+
+				if (piece.Owner != TurnPlayer) {
+					return new List<Coords> ();
+				} else {
+					var moves = checkMoves (piece);
+					List<Coords> rtn = new List<Coords> ();
+
+               for (int i = 0; i < moves.Count; i++)
+               {
+                  rtn.Add (new Coords() { x = moves[i].Pos.x, y = moves[i].Pos.y });
+               }
+
+               return rtn;
+            }
+         }
       }
    }
 
-   public interface TurnListener
+   public class GameMaster
    {
-      void ChangedPhase(string name);
-      void TurnBegin(Player player);
-      void TurnOver();
-   }
-
-   public interface GameListener
-   {
-      void GameOver(Player winner);
-   }
-
-   public class GameMaster : TurnListener
-   {
-      private List<GameListener> Listeners = new List<GameListener>();
-
       public const int MAX_ROUND_PIECES = 2;
       public const int MAX_SQUARE_PIECES = 3;
       public const int MOVES_PER_TURN = 2;
       public const int PUSHES_PER_TURN = 1;
 
-      private Board board;
+      private Board Board;
       private Player roundStarter;
-      public GameTurn currentTurn {get; private set;}
+      public GameTurn Turn {get; private set;}
       public int round {get; private set;}
-
-      public GameMaster ()
-      {
-			Reset ();
+		
+      public void Reset ()
+		{
+			Board = Board.CreateFromFile ("board.txt");
+			round = 0;
+			roundStarter = Player.P1;
+			
+			Messenger.Invoke ("game.begin");
+			newTurn (roundStarter);	
       }
 
-      public void Reset()
-      {
-         board = Board.CreateFromFile("board.txt");
-         round = 0;
-         roundStarter = (Player) Enum.GetValues(typeof (Player)).GetValue(new Random().Next(0, 1));
-
-         currentTurn = new GameTurn(board,roundStarter, round);
-         currentTurn.Subscribe(this);
+	  private void newTurn (Player player)
+		{
+			Turn = new GameTurn (TurnOver, Board, player, round);
+			Turn.Begin ();
       }
+		
+      private void TurnOver ()
+		{
+			if (Board.Winner () != null) {
+				Messenger<Player>.Invoke("game.over", Board.Winner().GetValueOrDefault());
+				return;
+			}
 
-      public GameControls Control()
-      {
-         return currentTurn.Control();
-      }
+			Player otherPlayer = roundStarter == Player.P1 ? Player.P2 : Player.P1;
 
-      public void TurnBegin(Player player)
-      {
-         // meh.
-      }
-
-      public void ChangedPhase(string name)
-      {
-         // meh?
-      }
-
-      public void TurnOver()
-      {
-         if (board.Winner() != null)
-         {
-            Listeners.ForEach(listener => listener.GameOver((Player)board.Winner()));
-            return;
-         }
-
-         Player otherPlayer = roundStarter == Player.P1 ? Player.P2 : Player.P1;
-
-         if (currentTurn.TurnPlayer == roundStarter)
-         {
-            currentTurn = new GameTurn(board,otherPlayer, round);
-         }
-         else
-         {
-            round++;
-            currentTurn = new GameTurn(board,roundStarter, round);
+			if (Turn.TurnPlayer == roundStarter) {
+				newTurn (otherPlayer);
+			} else {
+				round++;
+				newTurn (roundStarter);
          }
       }
 
       public Player? Winner()
       {
-         return board.Winner();
+         return Board.Winner();
       }
-
-      public void Subscribe(GameListener listener)
-      {
-         Listeners.Add(listener);
-      }
+						
+	  public GameBoard ViewBoard ()
+		{
+			GameBoard rtn = new GameBoard ();
+			rtn.tiles = new List<GameTile> ();
+			var iterator = Board.Squares.GetEnumerator ();
+			iterator.MoveNext ();
+			for (int i = 0; i < Board.Squares.Length; i++) {
+				BoardSquare tile = iterator.Current as BoardSquare;
+				rtn.tiles.Add(new GameTile (){
+					location = new Coords(){x = tile.Pos.x, y = tile.Pos.y},
+					type = tile.Type});
+				iterator.MoveNext ();
+			}
+			
+			rtn.tokens = new List<GameToken>();
+			int j = 0;
+			foreach (Piece piece in Board.Pieces.Values) {
+				rtn.tokens.Add(new GameToken () {
+					location = new Coords() {x = piece.Occupies.Pos.x, y = piece.Occupies.Pos.y},
+					owner = piece.Owner});
+				j++;
+			}
+			
+			return rtn;
+	  }
+		
+					
+		public static Board AIClone (GameMaster master)
+		{
+			Board newBoard = Board.AIClone (master.Board);
+			
+			return newBoard;
+		}
    }
 }

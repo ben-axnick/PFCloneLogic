@@ -1,50 +1,58 @@
 using System;
 using System.Collections.Generic;
+using SeeSharpMessenger;
 
 namespace PushFightLogic
 {	
-	public class Piece
+	public class Piece : IEquatable<Piece>
 	{
+		private static int idCurrent = 0;
+		
+		public int ID {get; private set;}
 		public Player Owner {get; private set;}
 		public PieceType Type {get; private set;}
 		public BoardSquare Occupies {get; private set;}
 
-		public void Place(BoardSquare target)
+		public void Place (BoardSquare target)
 		{
-			Occupies = target;	
-		}
-		
-		public void Move(BoardSquare target)
-		{
-         if (CanMove(target))
-            Place(target);
-		}
-		
-      public void Displace(BoardSquare target)
-      {
-         if (!Occupies.AdjacentSquares().Contains(target))
-            return; // Can only displace to adjacent squares
-         else
-         {
-            if (target.ContainsPiece())
-            {
-               target.ContainedPiece().Displace(NextSquare(Occupies, target));
-            }
+			Occupies = target;
+			NotifyFn();
 
-            Place(target);
+			if (Occupies.Type == BoardSquareType.EDGE) {
+				Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this));
+			}
+		}
+		
+		public void Move (BoardSquare target)
+		{
+			if (CanMove (target)) {
+				Messenger<GameToken,Coords>.Invoke ("piece.moving", GameToken.FromPiece (this), target.Pos);
+				Place (target);
+			}
+		}
+		
+      public void Displace (BoardSquare target)
+		{
+			if (!Occupies.AdjacentSquares ().Contains (target))
+				return; // Can only displace to adjacent squares
+			else {
+				if (target.ContainsPiece ()) {
+					target.ContainedPiece ().Displace (NextSquare (Occupies, target));
+				}
+			
+				Messenger<GameToken,Coords>.Invoke ("piece.displacing", GameToken.FromPiece (this), target.Pos);
+            	Place(target);
          }
       }
 
       public List<BoardSquare> CheckMoves()
       {
-         List<BoardSquare> explored = new List<BoardSquare>();
-         Queue<BoardSquare> upcoming = new Queue<BoardSquare>();
+         List<BoardSquare> explored = new List<BoardSquare>(32);
+         Queue<BoardSquare> upcoming = new Queue<BoardSquare>(64);
 
          Func<List<BoardSquare>,List<BoardSquare>> filter = (adjacent) =>
          {
-            List<BoardSquare> viable = new List<BoardSquare>();
-            viable.AddRange(adjacent);
-            viable.RemoveAll(square =>
+            adjacent.RemoveAll(square =>
             {
                if (square.Type != BoardSquareType.NORMAL)
                   return true;
@@ -56,7 +64,7 @@ namespace PushFightLogic
                   return false;
             });
 
-            return viable;
+            return adjacent;
          };
 
 
@@ -69,7 +77,7 @@ namespace PushFightLogic
             if (!explored.Contains(next)) explored.Add(next);
 
             viables = filter(next.AdjacentSquares());
-            viables.ForEach(i => upcoming.Enqueue(i));
+            viables.ForEach(i => {if (!upcoming.Contains(i)) upcoming.Enqueue(i);});
          }
 
          return explored;
@@ -77,7 +85,7 @@ namespace PushFightLogic
 
 		public bool CanMove(BoardSquare target)
 		{
-         return CheckMoves().Contains(target);
+        	return CheckMoves().Contains(target);
 		}
 		
 		public bool CanBePushed(Piece pusher)
@@ -99,25 +107,29 @@ namespace PushFightLogic
          {
             return next.ContainedPiece().CanBePushed(this);
          }
-
-			throw new NotImplementedException();
 		}
 
-      private static BoardSquare NextSquare(BoardSquare pusherSquare, BoardSquare pushee)
-      {
-         int newX = pushee.PosX - (pusherSquare.PosX - pushee.PosX);
-         int newY = pushee.PosY - (pusherSquare.PosY - pushee.PosY);
+      private static BoardSquare NextSquare (BoardSquare pusherSquare, BoardSquare pushee)
+		{
+			int newX = pushee.Pos.x - (pusherSquare.Pos.x - pushee.Pos.x);
+			int newY = pushee.Pos.y - (pusherSquare.Pos.y - pushee.Pos.y);
 
-         return pushee.AdjacentSquares().Find(square => square.PosX == newX && square.PosY == newY);
+			var result = pushee.AdjacentSquares ().Find (square => square.Pos.x == newX && square.Pos.y == newY);
+			if (result == null)
+				throw new Exception ("NextSquare of " + pusherSquare.Pos.ToString() + " and " + pushee.Pos.ToString() + " did not exist.");
+			return result;
       }
 		
 		public PushBehaviour Push {get; private set;}
 		
-		public Piece(Board board, Player owner, PieceType type)
+      private Action NotifyFn;
+		public Piece (Board board, Player owner, PieceType type)
 		{
-			this.Owner = owner;
-			this.Type = type;
-			
+			Owner = owner;
+			Type = type;
+			ID = Piece.idCurrent++;
+			NotifyFn = board.NotifyDirty;
+
 			if (Type == PieceType.ROUND)
 				Push = new RoundPiecePushBehaviour();
 			else if (Type == PieceType.SQUARE)
@@ -125,6 +137,18 @@ namespace PushFightLogic
 			
 			Occupies = null;
 		}
+
+      public override int GetHashCode()
+      {
+         return ID;
+      }
+
+		#region IEquatable implementation
+		public bool Equals (Piece other)
+		{
+			return other.ID == ID;
+		}
+		#endregion
 	}
 
 	public interface PushBehaviour
@@ -165,8 +189,8 @@ namespace PushFightLogic
 		
 		public void Push (BoardSquare target)
 		{
-         if (CanPush(target))
-         {
+			if (CanPush (target)) {
+				Messenger<GameToken,Coords>.Invoke ("piece.pushing", GameToken.FromPiece (MyPiece), target.Pos);
             MyPiece.Displace(target);
             TheAnchor.MoveAnchor(MyPiece);
          }
@@ -174,8 +198,10 @@ namespace PushFightLogic
 
 		public bool CanPush (BoardSquare target)
 		{
-         if (!target.ContainsPiece())
-            return false;
+			if (!target.ContainsPiece ())
+				return false;
+			else if (MyPiece.Occupies.AdjacentSquares().Find (square => square.Pos.Equals (target.Pos)) == null)
+				return false;
          else
             return target.ContainedPiece().CanBePushed(MyPiece);
 		}
@@ -185,9 +211,12 @@ namespace PushFightLogic
          return MyPiece.Occupies.AdjacentSquares().FindAll(square => CanPush(square));
       }
 
-      public bool AmIAnchored()
-      {
-         return TheAnchor.SitsAtop != null && TheAnchor.SitsAtop.Equals(MyPiece);
+      public bool AmIAnchored ()
+		{
+			if (TheAnchor.SitsAtop == null)
+				return false;
+         	else 
+				return TheAnchor.SitsAtop.Equals(MyPiece);
       }
 
 		public SquarePiecePushBehaviour(Piece parent, Anchor anchor)

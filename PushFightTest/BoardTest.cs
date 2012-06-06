@@ -20,8 +20,8 @@ namespace PushFightTest
       public void TestLoadedSquareCoords()
       {
          Board board = Board.CreateFromFile("board.txt");
-         Assert.AreEqual(3, board.Squares[3, 2].PosX);
-         Assert.AreEqual(2, board.Squares[3, 2].PosY);
+         Assert.AreEqual(3, board.Squares[3, 2].Pos.x);
+         Assert.AreEqual(2, board.Squares[3, 2].Pos.y);
       }
 
       [Test]
