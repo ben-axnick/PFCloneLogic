@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SeeSharpMessenger;
+using Pooling;
 
 namespace PushFightLogic
 {	
@@ -149,6 +150,125 @@ namespace PushFightLogic
 			return other.ID == ID;
 		}
 		#endregion
+
+      public void Reclaim(Board board, Player owner)
+      {
+         Owner = owner;
+         NotifyFn = board.NotifyDirty;
+         Occupies = null;
+
+         SquarePiecePushBehaviour squareBehaviour = Push as SquarePiecePushBehaviour;
+         if (squareBehaviour != null) squareBehaviour.Reclaim(this, board.TheAnchor);
+      }
+
+      class RoundPiecePushBehaviour : PushBehaviour
+      {
+         public void Push(BoardSquare target)
+         {
+            return; // Round pieces can't push
+         }
+
+         public bool CanPush(BoardSquare target)
+         {
+            return false;
+         }
+
+         public List<BoardSquare> CheckPushes()
+         {
+            return new List<BoardSquare>();
+         }
+
+         public bool AmIAnchored()
+         {
+            return false;
+         }
+      }
+
+      class SquarePiecePushBehaviour : PushBehaviour
+      {
+         private Anchor TheAnchor;
+         private Piece MyPiece;
+
+         public void Push(BoardSquare target)
+         {
+            if (CanPush(target))
+            {
+               Messenger<GameToken, Coords>.Invoke("piece.pushing", GameToken.FromPiece(MyPiece), target.Pos);
+               MyPiece.Displace(target);
+               TheAnchor.MoveAnchor(MyPiece);
+            }
+         }
+
+         public bool CanPush(BoardSquare target)
+         {
+            if (!target.ContainsPiece())
+               return false;
+            else if (MyPiece.Occupies.AdjacentSquares().Find(square => square.Pos.Equals(target.Pos)) == null)
+               return false;
+            else
+               return target.ContainedPiece().CanBePushed(MyPiece);
+         }
+
+         public List<BoardSquare> CheckPushes()
+         {
+            return MyPiece.Occupies.AdjacentSquares().FindAll(square => CanPush(square));
+         }
+
+         public bool AmIAnchored()
+         {
+            if (TheAnchor.SitsAtop == null)
+               return false;
+            else
+               return TheAnchor.SitsAtop.Equals(MyPiece);
+         }
+
+         public SquarePiecePushBehaviour(Piece parent, Anchor anchor)
+         {
+            Reclaim(parent, anchor);
+         }
+
+         public void Reclaim(Piece parent, Anchor anchor)
+         {
+            MyPiece = parent;
+            TheAnchor = anchor;
+         }
+      }
+
+      public static Pool<Piece> SquarePieces = null;
+      public static Pool<Piece> RoundPieces = null;
+      public static void SetupPiecePools(Board template)
+      {
+         SquarePieces = new Pool<Piece>(310000, pool =>
+         {
+            return new Piece(template, Player.P1, PieceType.SQUARE);
+         },
+         Pooling.LoadingMode.Eager,
+         Pooling.AccessMode.FIFO);
+
+         
+         RoundPieces = new Pool<Piece>(210000, pool =>
+         {
+            return new Piece(template, Player.P1, PieceType.ROUND);
+         },
+         Pooling.LoadingMode.Eager,
+         Pooling.AccessMode.FIFO);
+      }
+
+      public static void ReturnPooledPiece(Piece piece)
+      {
+         if (piece.Type == PieceType.ROUND)
+            RoundPieces.Release(piece);
+         else
+            SquarePieces.Release(piece);
+      }
+
+      public static Piece AcquirePooledPiece(PieceType pieceType)
+      {
+         if (pieceType == PieceType.ROUND)
+            return RoundPieces.Acquire();
+         else
+            return SquarePieces.Acquire();
+      }
 	}
 
 	public interface PushBehaviour
@@ -157,73 +277,6 @@ namespace PushFightLogic
 		bool CanPush(BoardSquare target);
       List<BoardSquare> CheckPushes();
       bool AmIAnchored();
-	}
-	
-	public class RoundPiecePushBehaviour : PushBehaviour
-	{
-		public void Push (BoardSquare target)
-		{
-			return; // Round pieces can't push
-		}
-
-		public bool CanPush (BoardSquare target)
-		{
-			return false;
-		}
-
-      public List<BoardSquare> CheckPushes()
-      {
-         return new List<BoardSquare>();
-      }
-
-      public bool AmIAnchored ()
-      {
-         return false;
-      }
-	}
-	
-	public class SquarePiecePushBehaviour : PushBehaviour
-	{
-		private Anchor TheAnchor;
-		private Piece MyPiece;
-		
-		public void Push (BoardSquare target)
-		{
-			if (CanPush (target)) {
-				Messenger<GameToken,Coords>.Invoke ("piece.pushing", GameToken.FromPiece (MyPiece), target.Pos);
-            MyPiece.Displace(target);
-            TheAnchor.MoveAnchor(MyPiece);
-         }
-		}
-
-		public bool CanPush (BoardSquare target)
-		{
-			if (!target.ContainsPiece ())
-				return false;
-			else if (MyPiece.Occupies.AdjacentSquares().Find (square => square.Pos.Equals (target.Pos)) == null)
-				return false;
-         else
-            return target.ContainedPiece().CanBePushed(MyPiece);
-		}
-
-      public List<BoardSquare> CheckPushes()
-      {
-         return MyPiece.Occupies.AdjacentSquares().FindAll(square => CanPush(square));
-      }
-
-      public bool AmIAnchored ()
-		{
-			if (TheAnchor.SitsAtop == null)
-				return false;
-         	else 
-				return TheAnchor.SitsAtop.Equals(MyPiece);
-      }
-
-		public SquarePiecePushBehaviour(Piece parent, Anchor anchor)
-		{
-			MyPiece = parent;
-			TheAnchor = anchor;	
-		}
 	}
 }
 

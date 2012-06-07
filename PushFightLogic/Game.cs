@@ -300,6 +300,8 @@ namespace PushFightLogic
       public void Reset ()
 		{
 			Board = Board.CreateFromFile ("board.txt");
+         Board.SetupBoardPool(Board);
+         Piece.SetupPiecePools(Board);
 			round = 0;
 			roundStarter = Player.P1;
 			

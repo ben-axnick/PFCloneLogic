@@ -12,12 +12,14 @@ namespace PushFightLogic
 		private Player Controlling = Player.P2;
 		
 		public Action<object> DebugFn = (blarg) => {};
-		
+		public List<Action> Instructions = new List<Action>();
+
 		public AIEngine (GameMaster master)
 		{
 			Master = master;
 		}
 		
+      private bool firstAct = true;
 		public void Act (string phase)
 		{
 			if (Master.Turn.TurnPlayer != Controlling)
@@ -31,29 +33,33 @@ namespace PushFightLogic
 		
 		 void DoPlacement ()
 		{
-			Master.Turn.Control ().Place (PieceType.ROUND, new Coords () {x = 5, y = 2});
-			Master.Turn.Control ().Place (PieceType.ROUND, new Coords () {x = 5, y = 3});
-			Master.Turn.Control ().Place (PieceType.SQUARE, new Coords () {x = 5, y = 1});
-			Master.Turn.Control ().Place (PieceType.SQUARE, new Coords () {x = 5, y = 4});
-			Master.Turn.Control ().Place (PieceType.SQUARE, new Coords () {x = 6, y = 3});
+         Instructions.Clear();
+			Instructions.Add( () => {Master.Turn.Control ().Place (PieceType.ROUND, new Coords () {x = 5, y = 2});});
+			Instructions.Add( () => {Master.Turn.Control ().Place (PieceType.ROUND, new Coords () {x = 5, y = 3});});
+			Instructions.Add( () => {Master.Turn.Control ().Place (PieceType.SQUARE, new Coords () {x = 5, y = 1});});
+			Instructions.Add( () => {Master.Turn.Control ().Place (PieceType.SQUARE, new Coords () {x = 5, y = 4});});
+         Instructions.Add( () => {Master.Turn.Control().Place(PieceType.SQUARE, new Coords() { x = 6, y = 3 });});
 		}
 		
 		const float IS_WIN = 100000;
 		const float IS_LOSS = -100000;
 		
-		private static int nodesEvaluated = 0;
+		public int NodesEvaluated  {get; private set;}
+
 		void DoMinMax ()
 		{
 			DebugFn ("Begin message suppression, determine all possible plays");
 			Messenger.Suppress = true;
-			nodesEvaluated = 0;
+			NodesEvaluated = 0;
 			
 			Board root = GameMaster.AIClone (Master);
-			MinMax (0, new ActionChain () {board = root});
+			MinMax (0, new ActionChain () {Board = root});
 			var bestAction = Candidate;
 			Messenger.Suppress = false;
-			DebugFn ("Finished determining " + nodesEvaluated + " plays");		
+			DebugFn ("Finished determining " + NodesEvaluated + " plays");		
 			
+         Board.Pool.Release(root);
+
 			if (bestAction.actions.Count > 3)
 				throw new Exception ("Max actions for one turn should be 3, got " + bestAction.actions.Count);
 			
@@ -63,33 +69,45 @@ namespace PushFightLogic
 			DebugFn ("Winning action of score " + bestAction.score + " chosen.");
 			DebugFn (bestAction);	
 			
-			CarryOutBestAction (bestAction);
+			StoreBestAction (bestAction);
 		}
 
 		const int MAX_PLIES = 1;
-		static ActionChain Candidate;
+		private ActionChain Candidate;
 		float MinMax (int depth, ActionChain continuesChain)
 		{
 			Player nextTurnTaker = (depth % 2) == 1 ? Player.P1 : Player.P2; // first turn to evaluate is P2
 			
-			List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.board);
+			List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.Board);
          
+         bool deeperSearchNeeded = true;
          Action<ActionChain> ScoringFn = (node) => {
-				nodesEvaluated++;
-				
-				if (node.board.Winner () != null) {
-					node.score = node.board.Winner () == Controlling ? IS_WIN : IS_LOSS;
+				NodesEvaluated++;
+				Player? thisNodeWinner = node.Board.Winner();
+
+				if (thisNodeWinner != null) {
+					node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
+               if (thisNodeWinner == nextTurnTaker) deeperSearchNeeded = false;
 				} else if (depth >= MAX_PLIES) {
-					node.score = ScoreBoard (Controlling, node.board);
+					node.score = ScoreBoard (Controlling, node.Board);
 				} else {
-					node.score = MinMax (depth + 1, node);
+					if (deeperSearchNeeded) node.score = MinMax (depth + 1, node);
+               else node.score = 0;
 				}
+
+            node.ClearBoard();
 			};
 
          if (depth == 0)
+         {
+            // execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
 			   turnActions.AsParallel<ActionChain>().ForAll(node => ScoringFn(node));
+            turnActions.Shuffle();
+         }
          else
+         {
             turnActions.ForEach(node => ScoringFn(node));
+         }
 
 			turnActions.Sort ((a,b) => {
 				return a.score.CompareTo (b.score);}
@@ -101,23 +119,24 @@ namespace PushFightLogic
 				Candidate = turnActions.First ();
 			}
 			
-			DebugFn (nodesEvaluated);
+			DebugFn (NodesEvaluated);
 			return Candidate.score;
 		}
 		
-		void CarryOutBestAction (ActionChain best)
+		void StoreBestAction (ActionChain best)
 		{
+         Instructions.Clear();
 			for (int i = 0; i < 3 && i < best.actions.Count; i++) {
 				ActionPair pair = best.actions [i];
 				if (pair.action == ActionTaken.SKIPPED) {
 					DebugFn ("AI SKIP " + Master.Turn.Phase ());
-					Master.Turn.Control ().Skip ();
+					Instructions.Add( () => {Master.Turn.Control ().Skip ();});
 				} else if (pair.action == ActionTaken.MOVED) {
 					DebugFn ("AI MOVE " + pair.fromLoc.ToString () + " " + pair.toLoc.ToString ());
-					Master.Turn.Control ().Move (pair.fromLoc, pair.toLoc);	
+					Instructions.Add( () => {Master.Turn.Control ().Move (pair.fromLoc, pair.toLoc);});
 				} else if (pair.action == ActionTaken.PUSHED) {
 					DebugFn ("AI PUSH " + pair.fromLoc.ToString () + " " + pair.toLoc.ToString ());
-					Master.Turn.Control().Push(pair.fromLoc, pair.toLoc);	
+               Instructions.Add(() => { Master.Turn.Control().Push(pair.fromLoc, pair.toLoc); });	
 				}
 			}
 		}
@@ -136,7 +155,12 @@ namespace PushFightLogic
 		class ActionChain
 		{
 			public List<ActionPair> actions;
-			public Board board;
+
+         private Board board = null;
+			public Board Board {get {return board;} set { 
+               if (board != null) ClearBoard();
+               board = value;}}
+
 			public float score;
 			public ActionChain()
 			{
@@ -150,6 +174,7 @@ namespace PushFightLogic
 			
 			public void Link (ActionChain previous)
 			{
+            previous.ClearBoard();
 				List<ActionPair> newAction = new List<ActionPair> ();
 				newAction.AddRange (previous.actions);
 				newAction.AddRange (actions);
@@ -160,6 +185,13 @@ namespace PushFightLogic
 			{
 				return actions [actions.Count - 1].action == ActionTaken.SKIPPED;
 			}
+
+         public void ClearBoard ()
+         {
+            if (board == null) return;
+            Board.Pool.Release(board);
+            board = null;
+         }
 		}
 		
       bool IsStupidMove(ActionChain chain)
@@ -171,7 +203,7 @@ namespace PushFightLogic
             return false;
          }
 
-         Board board = chain.board;
+            Board board = chain.Board;
          Piece movedPiece = board.Pieces[board.Squares[moveProposal.toLoc.x, moveProposal.toLoc.y]];
 
          if (movedPiece.Occupies.AdjacentSquares()
@@ -184,6 +216,30 @@ namespace PushFightLogic
          {
             return false;
          }
+      }
+
+      bool IsStupidPush(ActionChain chain)
+      {
+         Board board = chain.Board;
+
+         ActionPair pushProposal = chain.actions.Last();
+
+         if (pushProposal.action == ActionTaken.SKIPPED)
+         {
+            return false;
+         }
+
+         ActionPair? pushedPiecePair = chain.actions.Find(pair => pair.action == ActionTaken.MOVED && pair.toLoc.Equals(pushProposal.toLoc));
+         if (pushedPiecePair != null)
+         {
+            Coords next = Coords.Next(pushProposal.fromLoc, pushProposal.toLoc);
+            if (board.Squares[next.x,next.y].AdjacentSquares().Any(square => square.Type == BoardSquareType.EDGE))
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
 		List<ActionChain> PlayOneTurn (Player p, Board root)
@@ -199,27 +255,38 @@ namespace PushFightLogic
 
             if (IsStupidMove(firstMove))
             {
+               firstMove.ClearBoard();
                continue;
             }
 
-				foreach (ActionChain secondMove in DoMovement(p, firstMove.board)) {
+            foreach (ActionChain secondMove in DoMovement(p, firstMove.Board))
+            {
+               secondMove.Link(firstMove);
                if (secondMove.actions.Last().fromLoc.Equals(firstMove.actions.Last().toLoc))
                   {
+                     secondMove.ClearBoard();
                      continue;
                   }
 
                   if (IsStupidMove(secondMove))
                   {
+                     secondMove.ClearBoard();
                      continue;
                   }
-					secondMove.Link (firstMove);
 					moveActions.Add (secondMove);
 				}
 			}
 			
 			foreach (ActionChain moveSet in moveActions) {
-				foreach (ActionChain pushSet in DoPushes(p, moveSet.board)) {
+				foreach (ActionChain pushSet in DoPushes(p, moveSet.Board)) {
 					pushSet.Link (moveSet);
+
+               if (IsStupidPush(pushSet))
+               {
+                  pushSet.ClearBoard();
+                  continue;
+               }
+
 					allActions.Add (pushSet);
 				}
 			}
@@ -254,14 +321,14 @@ namespace PushFightLogic
 				chain.actions.Add (move);
 				Board moveBoard = Board.AIClone (board);
 				actionFn (moveBoard, move);
-				chain.board = moveBoard;
+				chain.Board = moveBoard;
 				
 				actions.Add (chain);
 			}
 			
 			ActionChain skipChain = new ActionChain ();
 			skipChain.actions.Add (new ActionPair () {action = ActionTaken.SKIPPED});
-			skipChain.board = board;
+			skipChain.Board = Board.AIClone(board);
 			actions.Add (skipChain);
 			
 			return actions;		

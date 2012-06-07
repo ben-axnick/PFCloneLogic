@@ -63,6 +63,7 @@
     <Compile Include="Piece.cs" />
     <Compile Include="Anchor.cs" />
     <Compile Include="AIEngine.cs" />
+    <Compile Include="Pool.cs" />
     <Compile Include="TestDriver.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

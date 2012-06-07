@@ -41,6 +41,15 @@ namespace PushFightLogic
       {
          return x * 100 + y;
       }
+
+      public static Coords Next(Coords first, Coords next)
+      {
+         return new Coords()
+         {
+            x = next.x - (first.x - next.x),
+            y = next.y - (first.y - next.y)
+         };
+      }
    }
 
    public struct GameToken
@@ -75,9 +84,10 @@ namespace PushFightLogic
 			Type = squareType;
 		}
 
+      private List<BoardSquare> adjacent = new List<BoardSquare>(4);
       public List<BoardSquare> AdjacentSquares()
       {
-         List<BoardSquare> adjacent = new List<BoardSquare>(4);
+         adjacent.Clear();
          var SquareArr = Parent.Squares;
 
          if (Pos.x - 1 >= 0)
@@ -115,7 +125,7 @@ namespace PushFightLogic
    }
 	
 	public delegate Player TerritoryFn(BoardSquare square);
-	
+
 	public class Board
 	{
       public Anchor TheAnchor = new Anchor();
@@ -222,22 +232,46 @@ namespace PushFightLogic
 			return board;
 		}
 		
+      public static Pooling.Pool<Board> Pool = null;
+
+      public static void SetupBoardPool(Board template)
+      {
+         Pool = new Pooling.Pool<Board>(50000, pool => {
+            Board newBoard = new Board();
+
+            BoardSquare[,] squares = new BoardSquare[template.Width, template.Height];
+            for (int y = 0; y < template.Height; y++)
+            {
+               for (int x = 0; x < template.Width; x++)
+               {
+                  squares[x, y] = new BoardSquare(newBoard, template.Squares[x, y].Type, new Coords() { x = x, y = y });
+               }
+            }
+            newBoard.SetSquares(squares, template.TerritoryOf);
+            return newBoard;
+         },
+         Pooling.LoadingMode.Eager,
+         Pooling.AccessMode.FIFO);
+      }
+
+      private static void ReclaimPooledBoard(Board newBoard)
+      {
+         newBoard.ActualPieces.ForEach(piece => Piece.ReturnPooledPiece(piece));
+         newBoard.ActualPieces.Clear();
+         newBoard.TheAnchor.Reset();
+         newBoard.NotifyDirty();
+      }
+
 		public static Board AIClone (Board board)
 		{
-			Board newBoard = new Board ();
-			
-			BoardSquare[,] squares = new BoardSquare[board.Width, board.Height];
-			for (int y = 0; y < board.Height; y++) {
-				for (int x = 0; x < board.Width; x++) {
-					squares [x, y] = new BoardSquare (newBoard, board.Squares [x, y].Type, new Coords () {x = x, y = y});
-				}
-			}
-			newBoard.SetSquares (squares, board.TerritoryOf);
-			
+         Board newBoard = Pool.Acquire();
+         ReclaimPooledBoard(newBoard);
+
 			foreach (Piece existingPiece in board.ActualPieces) {
 				Coords existingPos = existingPiece.Occupies.Pos;
 				
-				Piece pieceToPlace = new Piece (newBoard, existingPiece.Owner, existingPiece.Type);
+				Piece pieceToPlace = Piece.AcquirePooledPiece(existingPiece.Type);
+            pieceToPlace.Reclaim(newBoard, existingPiece.Owner);
 				pieceToPlace.Place (newBoard.Squares [existingPos.x, existingPos.y]);
 				newBoard.ActualPieces.Add (pieceToPlace);
 			}
@@ -247,6 +281,7 @@ namespace PushFightLogic
 				newBoard.TheAnchor
 					.MoveAnchor (newBoard.Pieces [newBoard.Squares[aPos.x,aPos.y]]);
 			}
+
 			return newBoard;
 		}
 	}
