@@ -372,20 +372,25 @@ namespace PushFightLogic
 		static float CalculateValue (Piece pc)
 		{
 			int value = 0;
+			int possibleMovesCount = pc.CheckMoves ().Count;
+			
 			Coords position = pc.Occupies.Pos;
 			if (
 				(position.x == 4 || position.x == 5) &&
 				(position.y == 2 || position.y == 3))
-				value = 50;
-			else if (pc.Occupies.AdjacentSquares().Find (tile => tile.Type == BoardSquareType.EDGE) != null) {
-				if (pc.Push.AmIAnchored())
-					value = -50;
+				value = 100;
+			else if (pc.Occupies.AdjacentSquares ().Find (tile => tile.Type == BoardSquareType.EDGE) != null) {
+				if (pc.Push.AmIAnchored ())
+					value = -20;
+				else if (possibleMovesCount == 0)
+					value = -1000;
 				else
 					value = -100;
 			} else {
-				value = 20;
+				value = 0;
 			}
 			
+			value += possibleMovesCount * 10;
 			return value;
 		}
 		

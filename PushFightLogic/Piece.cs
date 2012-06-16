@@ -46,38 +46,41 @@ namespace PushFightLogic
          }
       }
 
-      public List<BoardSquare> CheckMoves()
-      {
-         List<BoardSquare> explored = new List<BoardSquare>(32);
-         Queue<BoardSquare> upcoming = new Queue<BoardSquare>(64);
+	  private static List<BoardSquare> NavigationFilter (List<BoardSquare> adjacent, List<BoardSquare> explored)
+		{
+			adjacent.RemoveAll (square =>
+			{
+				if (square.Type != BoardSquareType.NORMAL)
+					return true;
+				else if (square.ContainsPiece ())
+					return true;
+				else if (explored.Contains (square))
+					return true;
+				else
+					return false;
+			
+			}
+			);
+			
+			return adjacent;
+		}
+		
+	  private List<BoardSquare> explored = new List<BoardSquare>(32);
+	  private Queue<BoardSquare> upcoming = new Queue<BoardSquare> (64);
+      public List<BoardSquare> CheckMoves ()
+		{
+			explored.Clear ();
+			upcoming.Clear ();
 
-         Func<List<BoardSquare>,List<BoardSquare>> filter = (adjacent) =>
-         {
-            adjacent.RemoveAll(square =>
-            {
-               if (square.Type != BoardSquareType.NORMAL)
-                  return true;
-               else if (square.ContainsPiece())
-                  return true;
-               else if (explored.Contains(square))
-                  return true;
-               else
-                  return false;
-            });
+			List<BoardSquare> viables = NavigationFilter (Occupies.AdjacentSquares (), explored);
+			viables.ForEach (i => upcoming.Enqueue (i));
 
-            return adjacent;
-         };
+			while (upcoming.Count > 0) {
+				BoardSquare next = upcoming.Dequeue ();
+				if (!explored.Contains (next))
+					explored.Add (next);
 
-
-         List<BoardSquare> viables = filter(Occupies.AdjacentSquares());
-         viables.ForEach(i => upcoming.Enqueue(i));
-
-         while(upcoming.Count > 0)
-         {
-            BoardSquare next = upcoming.Dequeue();
-            if (!explored.Contains(next)) explored.Add(next);
-
-            viables = filter(next.AdjacentSquares());
+				viables = NavigationFilter(next.AdjacentSquares(), explored);
             viables.ForEach(i => {if (!upcoming.Contains(i)) upcoming.Enqueue(i);});
          }
 
@@ -236,9 +239,11 @@ namespace PushFightLogic
 
       public static Pool<Piece> SquarePieces = null;
       public static Pool<Piece> RoundPieces = null;
-      public static void SetupPiecePools(Board template)
-      {
-         SquarePieces = new Pool<Piece>(310000, pool =>
+      public static void SetupPiecePools (Board template)
+		{
+			if (SquarePieces != null)
+				return;
+         SquarePieces = new Pool<Piece>(61000, pool =>
          {
             return new Piece(template, Player.P1, PieceType.SQUARE);
          },
@@ -246,7 +251,7 @@ namespace PushFightLogic
          Pooling.AccessMode.FIFO);
 
          
-         RoundPieces = new Pool<Piece>(210000, pool =>
+         RoundPieces = new Pool<Piece>(41000, pool =>
          {
             return new Piece(template, Player.P1, PieceType.ROUND);
          },

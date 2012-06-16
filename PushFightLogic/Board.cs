@@ -234,9 +234,11 @@ namespace PushFightLogic
 		
       public static Pooling.Pool<Board> Pool = null;
 
-      public static void SetupBoardPool(Board template)
-      {
-         Pool = new Pooling.Pool<Board>(50000, pool => {
+      public static void SetupBoardPool (Board template)
+		{
+			if (Pool != null)
+				return;
+         Pool = new Pooling.Pool<Board>(10000, pool => {
             Board newBoard = new Board();
 
             BoardSquare[,] squares = new BoardSquare[template.Width, template.Height];
