@@ -243,15 +243,15 @@ namespace PushFightLogic
 		{
 			if (SquarePieces != null)
 				return;
-         SquarePieces = new Pool<Piece>(61000, pool =>
-         {
-            return new Piece(template, Player.P1, PieceType.SQUARE);
-         },
+			SquarePieces = new Pool<Piece> (Board.AMT_BOARDS_NEEDED_PER_SEARCH * Environment.ProcessorCount * 6 + 100, pool =>
+			{
+				return new Piece (template, Player.P1, PieceType.SQUARE);
+			},
          Pooling.LoadingMode.Eager,
          Pooling.AccessMode.FIFO);
 
          
-         RoundPieces = new Pool<Piece>(41000, pool =>
+			RoundPieces = new Pool<Piece> (Board.AMT_BOARDS_NEEDED_PER_SEARCH * Environment.ProcessorCount * 4 + 100, pool =>
          {
             return new Piece(template, Player.P1, PieceType.ROUND);
          },

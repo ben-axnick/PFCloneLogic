@@ -297,11 +297,19 @@ namespace PushFightLogic
       public GameTurn Turn {get; private set;}
       public int round {get; private set;}
 		
+      private static bool firstRun = true;
+
       public void Reset ()
 		{
 			Board = Board.CreateFromFile ("board.txt");
-         Board.SetupBoardPool(Board);
-         Piece.SetupPiecePools(Board);
+
+         if (firstRun)
+         {
+            firstRun = false;
+            Board.SetupBoardPool(Board);
+            Piece.SetupPiecePools(Board);
+         }
+
 			round = 0;
 			roundStarter = Player.P1;
 			

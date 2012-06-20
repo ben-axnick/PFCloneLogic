@@ -3,23 +3,27 @@ using System.Collections.Generic;
 using SeeSharpMessenger;
 using System.Linq;
 using System.Diagnostics;
+using RaptorDB;
 
 namespace PushFightLogic
 {
 	public class AIEngine
 	{
+      private RaptorDB<string> DB;
+     const string DB_PATH = "ai.fdb";
 		private GameMaster Master;
 		private Player Controlling = Player.P2;
 		
 		public Action<object> DebugFn = (blarg) => {};
 		public List<Action> Instructions = new List<Action>();
+      public bool KeepSearching {get; set;}
 
 		public AIEngine (GameMaster master)
 		{
 			Master = master;
+         DB = RaptorDB<string>.Open(System.IO.Path.GetFullPath(DB_PATH), false);
 		}
 		
-      private bool firstAct = true;
 		public void Act (string phase)
 		{
 			if (Master.Turn.TurnPlayer != Controlling)
@@ -53,6 +57,7 @@ namespace PushFightLogic
 			NodesEvaluated = 0;
 			
 			Board root = GameMaster.AIClone (Master);
+         KeepSearching = true;
 			MinMax (0, new ActionChain () {Board = root});
 			var bestAction = Candidate;
 			Messenger.Suppress = false;
@@ -72,36 +77,52 @@ namespace PushFightLogic
 			StoreBestAction (bestAction);
 		}
 
+
 		const int MAX_PLIES = 1;
 		private ActionChain Candidate;
+
 		float MinMax (int depth, ActionChain continuesChain)
 		{
 			Player nextTurnTaker = (depth % 2) == 1 ? Player.P1 : Player.P2; // first turn to evaluate is P2
 			
 			List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.Board);
-         
-         bool deeperSearchNeeded = true;
-         Action<ActionChain> ScoringFn = (node) => {
-				NodesEvaluated++;
-				Player? thisNodeWinner = node.Board.Winner();
+			NodesEvaluated += turnActions.Count;
+			
+			bool deeperSearchNeeded = true;
+			Action<ActionChain> ScoringFn = (node) => {
+				byte[] dbrec = new byte[4];
+				bool storedInDB = DB.Get (node.Board.GUID (), out dbrec);
 
-				if (thisNodeWinner != null) {
-					node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
-               if (thisNodeWinner == nextTurnTaker) deeperSearchNeeded = false;
-				} else if (depth >= MAX_PLIES) {
-					node.score = ScoreBoard (Controlling, node.Board);
+				if (storedInDB) {
+					node.score = BitConverter.ToSingle (dbrec, 0);
 				} else {
-					if (deeperSearchNeeded) node.score = MinMax (depth + 1, node);
-               else node.score = 0;
+					Player? thisNodeWinner = node.Board.Winner ();
+
+					if (thisNodeWinner != null) {
+						node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
+						if (thisNodeWinner == nextTurnTaker)
+							deeperSearchNeeded = false;
+					} else if (depth >= MAX_PLIES || KeepSearching == false) {
+						node.score = ScoreBoard (Controlling, node.Board);
+					} else {
+						if (deeperSearchNeeded) {
+							node.score = MinMax (depth + 1, node);
+
+							if (depth == 0 && KeepSearching)
+								RecordNodeInDB (node.Board, node.score);
+						} else
+							node.score = 0;
+					}
+
 				}
 
-            node.ClearBoard();
+				node.ClearBoard ();
 			};
 
-         if (depth == 0)
-         {
-            // execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
-			   turnActions.AsParallel<ActionChain>().ForAll(node => ScoringFn(node));
+		if (depth == 0) {
+			// execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
+			turnActions.AsParallel<ActionChain> ().ForAll (node => ScoringFn (node));
+			//turnActions.ForEach (node => ScoringFn (node));
             turnActions.Shuffle();
          }
          else
@@ -122,6 +143,15 @@ namespace PushFightLogic
 			DebugFn (NodesEvaluated);
 			return Candidate.score;
 		}
+
+      private void RecordNodeInDB(Board board, float p)
+      {
+         byte[] dbrec = BitConverter.GetBytes(p);
+         foreach (string guid in board.AllGUIDs())
+         {
+            DB.Set(guid, dbrec);
+         }
+      }
 		
 		void StoreBestAction (ActionChain best)
 		{
@@ -138,6 +168,10 @@ namespace PushFightLogic
 					DebugFn ("AI PUSH " + pair.fromLoc.ToString () + " " + pair.toLoc.ToString ());
                Instructions.Add(() => { Master.Turn.Control().Push(pair.fromLoc, pair.toLoc); });	
 				}
+            else
+            {
+               throw new Exception("Unknown AI action");
+            }
 			}
 		}
 		
@@ -203,7 +237,7 @@ namespace PushFightLogic
             return false;
          }
 
-            Board board = chain.Board;
+         Board board = chain.Board;
          Piece movedPiece = board.Pieces[board.Squares[moveProposal.toLoc.x, moveProposal.toLoc.y]];
 
          if (movedPiece.Occupies.AdjacentSquares()
@@ -244,8 +278,8 @@ namespace PushFightLogic
 
 		List<ActionChain> PlayOneTurn (Player p, Board root)
 		{
-			List<ActionChain> allActions = new List<ActionChain> (8192);
-         List<ActionChain> moveActions = new List<ActionChain> (4096);
+			List<ActionChain> allActions = new List<ActionChain> (3000);
+         List<ActionChain> moveActions = new List<ActionChain> (1500);
 			
 			foreach (ActionChain firstMove in DoMovement(p, root)) {
 				if (firstMove.LastMoveSkipped ()) {
@@ -385,12 +419,12 @@ namespace PushFightLogic
 				else if (possibleMovesCount == 0)
 					value = -1000;
 				else
-					value = -100;
+					value = -500;
 			} else {
 				value = 0;
 			}
 			
-			value += possibleMovesCount * 10;
+			value += possibleMovesCount * 4;
 			return value;
 		}
 		

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using SeeSharpMessenger;
 using System.Linq;
+using System.Text;
 
 namespace PushFightLogic
 {
@@ -231,14 +232,15 @@ namespace PushFightLogic
 			);
 			return board;
 		}
-		
+	  
+		public const int AMT_BOARDS_NEEDED_PER_SEARCH = 3000;
       public static Pooling.Pool<Board> Pool = null;
-
+      
       public static void SetupBoardPool (Board template)
 		{
 			if (Pool != null)
 				return;
-         Pool = new Pooling.Pool<Board>(10000, pool => {
+         Pool = new Pooling.Pool<Board>(AMT_BOARDS_NEEDED_PER_SEARCH * Environment.ProcessorCount, pool => {
             Board newBoard = new Board();
 
             BoardSquare[,] squares = new BoardSquare[template.Width, template.Height];
@@ -286,6 +288,58 @@ namespace PushFightLogic
 
 			return newBoard;
 		}
-	}
+
+      public string GUID()
+      {
+         return GUID(coord => coord);
+      }
+
+      public List<string> AllGUIDs()
+      {
+         List<string> guids = new List<string>(4);
+         guids.Add(GUID());
+
+         // A board rotated 180 degrees is exactly the same board!
+         guids.Add(GUID(coord => new Coords() { x = (Width - 1) - coord.x, y = (Height - 1) - coord.y }));
+            
+         return guids;
+      }
+
+      public string GUID (Func<Coords,Coords> CoordFilter)
+      {
+         StringBuilder outStr = new StringBuilder(64, 64);
+
+         List<Piece> orderedPieces = new List<Piece>(10);
+
+         for (int i = 0; i <= 1; i++)
+         {
+            Player color = (Player) Enum.GetValues(typeof(Player)).GetValue(i);
+
+            var myPieces = ActualPieces.Where(pc => pc.Owner == color);
+            var squares = myPieces.Where(pc => pc.Type == PieceType.SQUARE);
+            var rounds = myPieces.Where(pc => pc.Type == PieceType.ROUND);
+
+            orderedPieces.AddRange(squares.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+            orderedPieces.AddRange(rounds.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+         }
+
+         foreach (Piece pc in orderedPieces)
+         {
+            var FilteredLoc = CoordFilter(pc.Occupies.Pos);
+            outStr.Append(String.Format("{0:d2}", FilteredLoc.x));
+            outStr.Append(String.Format("{0:d2}", FilteredLoc.y));
+         }
+
+         if (TheAnchor.SitsAtop != null)
+         {
+            var FilteredLoc = CoordFilter(TheAnchor.SitsAtop.Occupies.Pos);
+            outStr.Append(String.Format("{0:d2}", FilteredLoc.x));
+            outStr.Append(String.Format("{0:d2}", FilteredLoc.y));
+         }
+
+         return outStr.ToString();
+
+      }
+   }
 }
 
