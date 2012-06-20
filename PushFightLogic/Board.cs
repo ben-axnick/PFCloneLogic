@@ -135,16 +135,14 @@ namespace PushFightLogic
       private List<Piece> ActualPieces = new List<Piece>(10);
 		public TerritoryFn TerritoryOf;
 
-      public int Width;
-      public int Height;
+      public int Width {get {return Squares.GetLength(0);}}
+      public int Height {get {return Squares.GetLength(1);}}
+
 		private void SetSquares(BoardSquare[,] squares, TerritoryFn whatBelongsToWho)
 		{
 			TerritoryOf = whatBelongsToWho;
 			Squares = squares;
          foreach(BoardSquare square in Squares) square.AdjacentSquaresInit();
-
-         Width = Squares.GetLength(0);
-         Height = Squares.GetLength(1);
 		}
 
 		public bool PlacePiece (Player owner, PieceType type, BoardSquare target)

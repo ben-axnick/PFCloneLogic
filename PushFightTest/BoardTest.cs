@@ -11,9 +11,9 @@ namespace PushFightTest
 		public void TestKeyPointsOfLoadedBoard()
 		{
          Board board = Board.CreateFromFile("board.txt");
-         Assert.AreEqual(BoardSquareType.RAIL, board.Squares[2, 0].Type);
-         Assert.AreEqual(BoardSquareType.EDGE, board.Squares[1, 1].Type);
-         Assert.AreEqual(BoardSquareType.NORMAL, board.Squares[3, 2].Type);
+         Assert.AreEqual(BoardSquareType.RAIL, board.Squares[3, 0].Type);
+         Assert.AreEqual(BoardSquareType.EDGE, board.Squares[2, 1].Type);
+         Assert.AreEqual(BoardSquareType.NORMAL, board.Squares[4, 2].Type);
 		}
 
       [Test]
@@ -55,10 +55,10 @@ namespace PushFightTest
       public void TestPlaceOutOfTerritory()
       {
          Board board = Board.CreateFromFile("board.txt");
-         bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[4, 2]);
+         bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[5, 2]);
          Assert.IsFalse(result);
 
-         result = board.PlacePiece(Player.P2, PieceType.ROUND, board.Squares[3, 2]);
+         result = board.PlacePiece(Player.P2, PieceType.ROUND, board.Squares[4, 2]);
          Assert.IsFalse(result);
       }
 	}

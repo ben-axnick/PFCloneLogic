@@ -67,9 +67,7 @@ namespace PushFightLogic
       public List<BoardSquare> CheckMoves ()
 		{	  
          List<BoardSquare> explored = new List<BoardSquare>(16);
-	      Queue<BoardSquare> upcoming = new Queue<BoardSquare> (32);
-			explored.Clear ();
-			upcoming.Clear ();
+	      Queue<BoardSquare> upcoming = new Queue<BoardSquare>(32);
 
 			List<BoardSquare> viables = NavigationFilter (Occupies.Adjacent, explored);
 			viables.ForEach (i => upcoming.Enqueue (i));
