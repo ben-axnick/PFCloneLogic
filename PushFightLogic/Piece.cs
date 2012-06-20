@@ -12,7 +12,8 @@ namespace PushFightLogic
 		public int ID {get; private set;}
 		public Player Owner {get; private set;}
 		public PieceType Type {get; private set;}
-		public BoardSquare Occupies {get; private set;}
+      public BoardSquare Occupies { get; private set; }
+      private Action NotifyFn;
 
 		public void Place (BoardSquare target)
 		{
@@ -34,7 +35,7 @@ namespace PushFightLogic
 		
       public void Displace (BoardSquare target)
 		{
-			if (!Occupies.AdjacentSquares ().Contains (target))
+			if (!Occupies.Adjacent.Contains (target))
 				return; // Can only displace to adjacent squares
 			else {
 				if (target.ContainsPiece ()) {
@@ -48,31 +49,29 @@ namespace PushFightLogic
 
 	  private static List<BoardSquare> NavigationFilter (List<BoardSquare> adjacent, List<BoardSquare> explored)
 		{
-			adjacent.RemoveAll (square =>
+			return adjacent.FindAll (square =>
 			{
 				if (square.Type != BoardSquareType.NORMAL)
-					return true;
-				else if (square.ContainsPiece ())
-					return true;
-				else if (explored.Contains (square))
-					return true;
-				else
 					return false;
+				else if (square.ContainsPiece ())
+					return false;
+				else if (explored.Contains (square))
+					return false;
+				else
+					return true;
 			
 			}
 			);
-			
-			return adjacent;
 		}
 		
-	  private List<BoardSquare> explored = new List<BoardSquare>(32);
-	  private Queue<BoardSquare> upcoming = new Queue<BoardSquare> (64);
       public List<BoardSquare> CheckMoves ()
-		{
+		{	  
+         List<BoardSquare> explored = new List<BoardSquare>(16);
+	      Queue<BoardSquare> upcoming = new Queue<BoardSquare> (32);
 			explored.Clear ();
 			upcoming.Clear ();
 
-			List<BoardSquare> viables = NavigationFilter (Occupies.AdjacentSquares (), explored);
+			List<BoardSquare> viables = NavigationFilter (Occupies.Adjacent, explored);
 			viables.ForEach (i => upcoming.Enqueue (i));
 
 			while (upcoming.Count > 0) {
@@ -80,7 +79,7 @@ namespace PushFightLogic
 				if (!explored.Contains (next))
 					explored.Add (next);
 
-				viables = NavigationFilter(next.AdjacentSquares(), explored);
+				viables = NavigationFilter(next.Adjacent, explored);
             viables.ForEach(i => {if (!upcoming.Contains(i)) upcoming.Enqueue(i);});
          }
 
@@ -118,7 +117,7 @@ namespace PushFightLogic
 			int newX = pushee.Pos.x - (pusherSquare.Pos.x - pushee.Pos.x);
 			int newY = pushee.Pos.y - (pusherSquare.Pos.y - pushee.Pos.y);
 
-			var result = pushee.AdjacentSquares ().Find (square => square.Pos.x == newX && square.Pos.y == newY);
+			var result = pushee.Adjacent.Find (square => square.Pos.x == newX && square.Pos.y == newY);
 			if (result == null)
 				throw new Exception ("NextSquare of " + pusherSquare.Pos.ToString() + " and " + pushee.Pos.ToString() + " did not exist.");
 			return result;
@@ -126,7 +125,6 @@ namespace PushFightLogic
 		
 		public PushBehaviour Push {get; private set;}
 		
-      private Action NotifyFn;
 		public Piece (Board board, Player owner, PieceType type)
 		{
 			Owner = owner;
@@ -206,7 +204,7 @@ namespace PushFightLogic
          {
             if (!target.ContainsPiece())
                return false;
-            else if (MyPiece.Occupies.AdjacentSquares().Find(square => square.Pos.Equals(target.Pos)) == null)
+            else if (MyPiece.Occupies.Adjacent.Find(square => square.Pos.Equals(target.Pos)) == null)
                return false;
             else
                return target.ContainedPiece().CanBePushed(MyPiece);
@@ -214,7 +212,7 @@ namespace PushFightLogic
 
          public List<BoardSquare> CheckPushes()
          {
-            return MyPiece.Occupies.AdjacentSquares().FindAll(square => CanPush(square));
+            return MyPiece.Occupies.Adjacent.FindAll(square => CanPush(square));
          }
 
          public bool AmIAnchored()

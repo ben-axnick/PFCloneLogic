@@ -240,7 +240,7 @@ namespace PushFightLogic
          Board board = chain.Board;
          Piece movedPiece = board.Pieces[board.Squares[moveProposal.toLoc.x, moveProposal.toLoc.y]];
 
-         if (movedPiece.Occupies.AdjacentSquares()
+         if (movedPiece.Occupies.Adjacent
                .Any(square => square.Type == BoardSquareType.EDGE) &&
                movedPiece.Push.CheckPushes().Count == 0)
          {
@@ -267,7 +267,7 @@ namespace PushFightLogic
          if (pushedPiecePair != null)
          {
             Coords next = Coords.Next(pushProposal.fromLoc, pushProposal.toLoc);
-            if (board.Squares[next.x,next.y].AdjacentSquares().Any(square => square.Type == BoardSquareType.EDGE))
+            if (board.Squares[next.x,next.y].Adjacent.Any(square => square.Type == BoardSquareType.EDGE))
             {
                return true;
             }
@@ -413,7 +413,7 @@ namespace PushFightLogic
 				(position.x == 4 || position.x == 5) &&
 				(position.y == 2 || position.y == 3))
 				value = 100;
-			else if (pc.Occupies.AdjacentSquares ().Find (tile => tile.Type == BoardSquareType.EDGE) != null) {
+			else if (pc.Occupies.Adjacent.Find (tile => tile.Type == BoardSquareType.EDGE) != null) {
 				if (pc.Push.AmIAnchored ())
 					value = -20;
 				else if (possibleMovesCount == 0)

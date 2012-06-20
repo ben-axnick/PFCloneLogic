@@ -85,22 +85,22 @@ namespace PushFightLogic
 			Type = squareType;
 		}
 
-      private List<BoardSquare> adjacent = new List<BoardSquare>(4);
-      public List<BoardSquare> AdjacentSquares()
+      public List<BoardSquare> Adjacent {get; private set;}
+      public List<BoardSquare> AdjacentSquaresInit()
       {
-         adjacent.Clear();
+         Adjacent = new List<BoardSquare>(4);
          var SquareArr = Parent.Squares;
 
          if (Pos.x - 1 >= 0)
-            adjacent.Add(SquareArr[Pos.x - 1,Pos.y]);
+            Adjacent.Add(SquareArr[Pos.x - 1,Pos.y]);
          if (Pos.x + 1 < Parent.Width)
-            adjacent.Add(SquareArr[Pos.x + 1, Pos.y]);
+            Adjacent.Add(SquareArr[Pos.x + 1, Pos.y]);
          if (Pos.y - 1 >= 0)
-            adjacent.Add(SquareArr[Pos.x, Pos.y - 1]);
+            Adjacent.Add(SquareArr[Pos.x, Pos.y - 1]);
          if (Pos.y + 1 < Parent.Height)
-            adjacent.Add(SquareArr[Pos.x, Pos.y + 1]);
+            Adjacent.Add(SquareArr[Pos.x, Pos.y + 1]);
 
-         return adjacent;
+         return Adjacent;
       }
 
       public bool ContainsPiece()
@@ -141,6 +141,7 @@ namespace PushFightLogic
 		{
 			TerritoryOf = whatBelongsToWho;
 			Squares = squares;
+         foreach(BoardSquare square in Squares) square.AdjacentSquaresInit();
 
          Width = Squares.GetLength(0);
          Height = Squares.GetLength(1);
