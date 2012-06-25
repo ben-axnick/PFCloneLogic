@@ -121,11 +121,12 @@ namespace PushFightLogic
 		void ScoringFn (int depth, ActionChain node)
 		{
 			byte[] dbrec = new byte[4];
-			bool storedInDB = DB.Get (node.Board.GUID (), out dbrec);
 
 			bool isTerminal = ApplyCutoff (node, depth);
 
 			if (!isTerminal) {
+				bool storedInDB = DB.Get (node.Board.GUID (), out dbrec);
+
 				if (storedInDB) {
 					node.score = BitConverter.ToSingle (dbrec, 0);
 				} else {
@@ -425,7 +426,8 @@ namespace PushFightLogic
 		{
 			int value = 0;
 			int possibleMovesCount = pc.CheckMoves ().Count;
-			
+			int alliesCount = pc.Occupies.Adjacent.Count(square => square.ContainsPiece() && square.ContainedPiece().Owner == pc.Owner);
+
 			Coords position = pc.Occupies.Pos;
 			if (
 				(position.x == 4 || position.x == 5) &&
@@ -434,15 +436,18 @@ namespace PushFightLogic
 			else if (pc.Occupies.Adjacent.Find (tile => tile.Type == BoardSquareType.EDGE) != null) {
 				if (pc.Push.AmIAnchored ())
 					value = -20;
-				else if (possibleMovesCount == 0)
+				else if (possibleMovesCount == 0 && pc.Push.CheckPushes().Count == 0)
 					value = -1000;
 				else
-					value = -500;
+					value = -300;
 			} else {
 				value = 0;
 			}
-			
+
+
 			value += possibleMovesCount * 4;
+			value += alliesCount * 10;
+
 			return value;
 		}
 		
