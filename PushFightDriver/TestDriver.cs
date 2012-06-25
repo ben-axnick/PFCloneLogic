@@ -30,12 +30,16 @@ namespace PushFightLogic
          ai.DebugFn = Debug;
 
          ai.Act("Placement");
-         ai.Instructions.ForEach( i => i());
+         while(true)
+            if (!ai.ExecuteNextInstruction()) break;
+
          master.Turn.Control().Skip();
          master.Turn.Control().Skip();
 
          ai.Act("Movement");
-         ai.Instructions.ForEach(i => i());
+         while (true)
+            if (!ai.ExecuteNextInstruction()) break;
+
          Console.ReadLine();
       }
 
