@@ -129,6 +129,7 @@ namespace PushFightLogic
 
 	public class Board
 	{
+
       public Anchor TheAnchor = new Anchor();
 		public BoardSquare[,] Squares;
       
@@ -233,7 +234,7 @@ namespace PushFightLogic
 		}
 	  
 		public const int AMT_BOARDS_NEEDED_PER_SEARCH = 3000;
-      public static Pooling.Pool<Board> Pool = null;
+		public static Pooling.Pool<Board> Pool = null;
       
       public static void SetupBoardPool (Board template)
 		{
@@ -290,21 +291,27 @@ namespace PushFightLogic
 
       public string GUID()
       {
-         return GUID(coord => coord);
+         return GUID(false, coord => coord);
       }
+	  
+	  public List<string> AllGUIDs ()
+		{
+			return AllGUIDs(false);
+		}
 
-      public List<string> AllGUIDs()
+      public List<string> AllGUIDs(bool inverted)
       {
          List<string> guids = new List<string>(4);
-         guids.Add(GUID());
+         guids.Add(GUID(inverted, coord => coord));
 
          // A board rotated 180 degrees is exactly the same board!
-         guids.Add(GUID(coord => new Coords() { x = (Width - 1) - coord.x, y = (Height - 1) - coord.y }));
+         guids.Add(GUID(inverted, coord => new Coords() { x = (Width - 1) - coord.x, y = (Height - 1) - coord.y }));
             
          return guids;
       }
 
-      public string GUID (Func<Coords,Coords> CoordFilter)
+
+      public string GUID (bool inverted, Func<Coords,Coords> CoordFilter)
       {
          StringBuilder outStr = new StringBuilder(64, 64);
 
@@ -317,9 +324,17 @@ namespace PushFightLogic
             var myPieces = ActualPieces.Where(pc => pc.Owner == color);
             var squares = myPieces.Where(pc => pc.Type == PieceType.SQUARE);
             var rounds = myPieces.Where(pc => pc.Type == PieceType.ROUND);
-
-            orderedPieces.AddRange(squares.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
-            orderedPieces.AddRange(rounds.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+			
+			if (inverted)
+				{
+	            orderedPieces.AddRange(rounds.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+	            orderedPieces.AddRange(squares.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+				}
+				else
+				{
+				orderedPieces.AddRange(squares.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+            	orderedPieces.AddRange(rounds.OrderBy(piece => piece.Occupies.Pos.GetHashCode()));
+				}
          }
 
          foreach (Piece pc in orderedPieces)

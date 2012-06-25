@@ -4,6 +4,8 @@ using SeeSharpMessenger;
 using System.Linq;
 using System.Diagnostics;
 using RaptorDB;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace PushFightLogic
 {
@@ -15,7 +17,9 @@ namespace PushFightLogic
 		private Player Controlling = Player.P2;
 		
 		public Action<object> DebugFn = (blarg) => {};
-		public List<Action> Instructions = new List<Action>();
+		private List<Action> Instructions = new List<Action>();
+		private int nextInstruction;
+
       public bool KeepSearching {get; set;}
 
 		public AIEngine (GameMaster master)
@@ -53,17 +57,18 @@ namespace PushFightLogic
 		void DoMinMax ()
 		{
 			DebugFn ("Begin message suppression, determine all possible plays");
+
 			Messenger.Suppress = true;
 			NodesEvaluated = 0;
-			
 			Board root = GameMaster.AIClone (Master);
-         KeepSearching = true;
-			MinMax (0, new ActionChain () {Board = root});
-			var bestAction = Candidate;
+         	KeepSearching = true;
+			nextInstruction = 0;
+			var bestAction = MinMax0 (new ActionChain () {Board = root});
 			Messenger.Suppress = false;
+
 			DebugFn ("Finished determining " + NodesEvaluated + " plays");		
 			
-         Board.Pool.Release(root);
+         	Board.Pool.Release(root);
 
 			if (bestAction.actions.Count > 3)
 				throw new Exception ("Max actions for one turn should be 3, got " + bestAction.actions.Count);
@@ -77,77 +82,119 @@ namespace PushFightLogic
 			StoreBestAction (bestAction);
 		}
 
+		public bool ExecuteNextInstruction ()
+		{
+			if (nextInstruction < Instructions.Count) {
+				Instructions [nextInstruction++] ();
+				return true;
+			} else {
+				return false;
+			}
+		}
 
 		const int MAX_PLIES = 1;
-		private ActionChain Candidate;
 
+		/**
+		 * Test win conditions, depth, and external signals to check whether to cut off or not.
+		 * 
+		 * Return true if terminal, else false.
+		 */
+		bool ApplyCutoff (ActionChain node, int depth)
+		{
+			Player? thisNodeWinner = node.Board.Winner ();
+
+			if (thisNodeWinner != null) {
+				node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
+				return true;
+			} else if (depth >= MAX_PLIES || KeepSearching == false) {
+				node.score = ScoreBoard (Controlling, node.Board);
+				return true;
+			}
+
+			return false;
+		}
+
+		/**
+		 * Determine a score by applying the scoring function, looking up the database, or recursing deeper.
+		 */
+		void ScoringFn (int depth, ActionChain node)
+		{
+			byte[] dbrec = new byte[4];
+			bool storedInDB = DB.Get (node.Board.GUID (), out dbrec);
+
+			bool isTerminal = ApplyCutoff (node, depth);
+
+			if (!isTerminal) {
+				if (storedInDB) {
+					node.score = BitConverter.ToSingle (dbrec, 0);
+				} else {
+					node.score = MinMax (depth + 1, node);
+							
+					// Store the score if it was obtained from a full search only
+					if (depth == 0 && KeepSearching) {
+						RecordNodeInDB (node.Board, node.score);
+					}
+				}
+			}
+
+			node.ClearBoard ();
+		}
+
+		/**
+		 * The base level minmax function, which utilises a different return type and parellelises the search
+		 */
+		ActionChain MinMax0 (ActionChain baseChain)
+		{
+			List<ActionChain> turnActions = PlayOneTurn (Controlling, baseChain.Board);
+			NodesEvaluated += turnActions.Count;
+
+			// execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
+			int nodesBatch = 500;
+			Parallel.ForEach(Partitioner.Create(0, turnActions.Count, nodesBatch), range => {
+				for(int i = range.Item1; i < range.Item2; i++)
+				{
+					ScoringFn(0, turnActions[i]);
+				}
+			});
+
+            turnActions.Shuffle();
+
+			turnActions.Sort ((a,b) => {
+				return a.score.CompareTo (b.score);}
+			);
+			
+			return turnActions.Last();
+		}
+
+		/**
+		 * Recursively called to determine the utility of every move available up to MAX_PLIES
+		 */
 		float MinMax (int depth, ActionChain continuesChain)
 		{
 			Player nextTurnTaker = (depth % 2) == 1 ? Player.P1 : Player.P2; // first turn to evaluate is P2
 			
 			List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.Board);
 			NodesEvaluated += turnActions.Count;
-			
-			bool deeperSearchNeeded = true;
-			Action<ActionChain> ScoringFn = (node) => {
-				byte[] dbrec = new byte[4];
-				bool storedInDB = DB.Get (node.Board.GUID (), out dbrec);
 
-				if (storedInDB) {
-					node.score = BitConverter.ToSingle (dbrec, 0);
-				} else {
-					Player? thisNodeWinner = node.Board.Winner ();
+			turnActions.ForEach(node => ScoringFn(depth, node));
 
-					if (thisNodeWinner != null) {
-						node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
-						if (thisNodeWinner == nextTurnTaker)
-							deeperSearchNeeded = false;
-					} else if (depth >= MAX_PLIES || KeepSearching == false) {
-						node.score = ScoreBoard (Controlling, node.Board);
-					} else {
-						if (deeperSearchNeeded) {
-							node.score = MinMax (depth + 1, node);
-
-							if (depth == 0 && KeepSearching)
-								RecordNodeInDB (node.Board, node.score);
-						} else
-							node.score = 0;
-					}
-
-				}
-
-				node.ClearBoard ();
-			};
-
-		if (depth == 0) {
-			// execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
-			turnActions.AsParallel<ActionChain> ().ForAll (node => ScoringFn (node));
-			//turnActions.ForEach (node => ScoringFn (node));
-            turnActions.Shuffle();
-         }
-         else
-         {
-            turnActions.ForEach(node => ScoringFn(node));
-         }
-
-			turnActions.Sort ((a,b) => {
-				return a.score.CompareTo (b.score);}
-			);
-			
 			if (Controlling == nextTurnTaker) {
-				Candidate = turnActions.Last ();
+				return turnActions.Max(node => node.score);
 			} else {
-				Candidate = turnActions.First ();
+				return turnActions.Min(node => node.score);
 			}
-			
-			DebugFn (NodesEvaluated);
-			return Candidate.score;
 		}
 
       private void RecordNodeInDB(Board board, float p)
       {
          byte[] dbrec = BitConverter.GetBytes(p);
          foreach (string guid in board.AllGUIDs())
+         {
+            DB.Set(guid, dbrec);
+         }
+
+		 dbrec = BitConverter.GetBytes(-p);         
+		 foreach (string guid in board.AllGUIDs(true))
          {
             DB.Set(guid, dbrec);
          }
@@ -252,30 +299,6 @@ namespace PushFightLogic
          }
       }
 
-      bool IsStupidPush(ActionChain chain)
-      {
-         Board board = chain.Board;
-
-         ActionPair pushProposal = chain.actions.Last();
-
-         if (pushProposal.action == ActionTaken.SKIPPED)
-         {
-            return false;
-         }
-
-         ActionPair? pushedPiecePair = chain.actions.Find(pair => pair.action == ActionTaken.MOVED && pair.toLoc.Equals(pushProposal.toLoc));
-         if (pushedPiecePair != null)
-         {
-            Coords next = Coords.Next(pushProposal.fromLoc, pushProposal.toLoc);
-            if (board.Squares[next.x,next.y].Adjacent.Any(square => square.Type == BoardSquareType.EDGE))
-            {
-               return true;
-            }
-         }
-
-         return false;
-      }
-
 		List<ActionChain> PlayOneTurn (Player p, Board root)
 		{
 			List<ActionChain> allActions = new List<ActionChain> (3000);
@@ -314,12 +337,6 @@ namespace PushFightLogic
 			foreach (ActionChain moveSet in moveActions) {
 				foreach (ActionChain pushSet in DoPushes(p, moveSet.Board)) {
 					pushSet.Link (moveSet);
-
-               if (IsStupidPush(pushSet))
-               {
-                  pushSet.ClearBoard();
-                  continue;
-               }
 
 					allActions.Add (pushSet);
 				}
