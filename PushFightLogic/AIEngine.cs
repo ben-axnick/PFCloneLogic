@@ -32,11 +32,18 @@ namespace PushFightLogic
 		{
 			if (Master.Turn.TurnPlayer != Controlling)
 				throw new NotSupportedException ("The AI only plays for P2 position currently");
-			
+	
+			Messenger.Suppress = true;
+			NodesEvaluated = 0;
+         	KeepSearching = true;
+			nextInstruction = 0;
+
 			if (phase == "Placement")
 				DoPlacement ();
 			else
 				DoMinMax();
+			
+			Messenger.Suppress = false;
 		}
 		
 		 void DoPlacement ()
@@ -56,15 +63,9 @@ namespace PushFightLogic
 
 		void DoMinMax ()
 		{
-			DebugFn ("Begin message suppression, determine all possible plays");
-
-			Messenger.Suppress = true;
-			NodesEvaluated = 0;
+			DebugFn ("Determining all possible plays");
 			Board root = GameMaster.AIClone (Master);
-         	KeepSearching = true;
-			nextInstruction = 0;
 			var bestAction = MinMax0 (new ActionChain () {Board = root});
-			Messenger.Suppress = false;
 
 			DebugFn ("Finished determining " + NodesEvaluated + " plays");		
 			
@@ -149,7 +150,7 @@ namespace PushFightLogic
 			NodesEvaluated += turnActions.Count;
 
 			// execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
-			int nodesBatch = 500;
+			int nodesBatch = 100;
 			Parallel.ForEach(Partitioner.Create(0, turnActions.Count, nodesBatch), range => {
 				for(int i = range.Item1; i < range.Item2; i++)
 				{
