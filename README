@@ -1,0 +1,2 @@
+A logical implementation of the PushFight boardgame. Should be located at PushFight\PushFightLogic in order to ensure that default paths are correct.
+Just load the solution up and compile, that will generate all the necessary .dlls inside the pushfight assets directory.
