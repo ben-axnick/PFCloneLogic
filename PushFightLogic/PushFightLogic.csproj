@@ -86,11 +86,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="board.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\SeeSharpMessenger\SeeSharpMessenger.csproj">
       <Project>{645EA75F-600F-4B7B-8FBB-92ED392A72FB}</Project>
       <Name>SeeSharpMessenger</Name>
@@ -98,5 +93,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="board.txt">
+      <Gettext-ScanForTranslations>false</Gettext-ScanForTranslations>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

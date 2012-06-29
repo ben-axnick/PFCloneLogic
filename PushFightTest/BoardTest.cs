@@ -10,7 +10,7 @@ namespace PushFightTest
 		[Test]
 		public void TestKeyPointsOfLoadedBoard()
 		{
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          Assert.AreEqual(BoardSquareType.RAIL, board.Squares[3, 0].Type);
          Assert.AreEqual(BoardSquareType.EDGE, board.Squares[2, 1].Type);
          Assert.AreEqual(BoardSquareType.NORMAL, board.Squares[4, 2].Type);
@@ -19,7 +19,7 @@ namespace PushFightTest
       [Test]
       public void TestLoadedSquareCoords()
       {
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          Assert.AreEqual(3, board.Squares[3, 2].Pos.x);
          Assert.AreEqual(2, board.Squares[3, 2].Pos.y);
       }
@@ -27,7 +27,7 @@ namespace PushFightTest
       [Test]
       public void TestLegalPiecePlacement()
       {
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[3,2]);
          Assert.IsTrue(result);
          Assert.IsTrue(board.Pieces.ContainsKey(board.Squares[3,2]));
@@ -37,7 +37,7 @@ namespace PushFightTest
       [Test]
       public void TestTwoPiecesOneSquare()
       {
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[3, 2]);
          bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[3, 2]);
          Assert.IsFalse(result);
@@ -46,7 +46,7 @@ namespace PushFightTest
       [Test]
       public void TestPlaceOutOfBounds()
       {
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[0, 0]);
          Assert.IsFalse(result);
       }
@@ -54,7 +54,7 @@ namespace PushFightTest
       [Test]
       public void TestPlaceOutOfTerritory()
       {
-         Board board = Board.CreateFromFile("board.txt");
+			Board board = Board.Create ();
          bool result = board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[5, 2]);
          Assert.IsFalse(result);
 

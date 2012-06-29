@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using SeeSharpMessenger;
 using System.Linq;
 using System.Text;
+using System.IO;
+using System.Reflection;
 
 namespace PushFightLogic
 {
@@ -199,11 +201,23 @@ namespace PushFightLogic
          return _pieces;
       }}}
       	
-		public static Board CreateFromFile (string path)
+		public static Board Create ()
+		{
+			Assembly assembly = typeof(Board).Assembly;
+			StreamReader boardStream = new StreamReader (assembly.GetManifestResourceStream ("PushFightLogic.board.txt"));
+			List<string> lines = new List<string> ();
+
+			while (boardStream.Peek() >= 0) {
+				lines.Add(boardStream.ReadLine());
+			}
+
+			return CreateFromData(lines.ToArray());
+		}
+
+		private static Board CreateFromData (string[] boardLines)
 		{
 			Board board = new Board ();
-			
-			string[] boardLines = System.IO.File.ReadAllLines ("board.txt");
+
 			BoardSquare[,] squares = new BoardSquare[boardLines [0].Length, boardLines.Length];
 			
 			for (int y = 0; y < boardLines.Length; y++) {

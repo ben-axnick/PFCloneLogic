@@ -301,7 +301,7 @@ namespace PushFightLogic
 
       public void Reset ()
 		{
-			Board = Board.CreateFromFile ("board.txt");
+			Board = Board.Create();
 
          if (firstRun)
          {

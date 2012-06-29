@@ -14,7 +14,7 @@ namespace PushFightTest
       [SetUp]
       public void SetupBoardForTests()
       {
-         board = Board.CreateFromFile("board.txt");
+		 board = Board.Create ();
 
          board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[4, 1]);
          board.PlacePiece(Player.P1, PieceType.ROUND, board.Squares[4, 2]);
