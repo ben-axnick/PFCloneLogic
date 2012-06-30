@@ -119,7 +119,8 @@ public class AIEngine
 	}
 
 
-	const int MAX_PLIES = 1;
+	const int SOFT_PLIES = 1;
+	const int HARD_PLIES = 2;
 
 	/**
 		 * Test win conditions, depth, and external signals to check whether to cut off or not.
@@ -128,16 +129,29 @@ public class AIEngine
 		 */
 	bool ApplyCutoff (ActionChain node, int depth)
 	{
-		Player? thisNodeWinner = node.Board.Winner;
-
-		if (thisNodeWinner != null)
+		if (node.Board.Winner != null)
 		{
-			node.score = thisNodeWinner == Controlling ? IS_WIN : IS_LOSS;
+			node.score = node.Board.Winner == Controlling ? IS_WIN : IS_LOSS;
 			return true;
 		}
-		else if (depth >= MAX_PLIES || KeepSearching == false)
+		else if (depth >= SOFT_PLIES)
 		{
+			// iterative deepening exception for dangerous positions
+			// TODO neaten up the logic
+			if (node.Board.Pieces.Values.Any(piece => piece.Occupies.Type == BoardSquareType.EDGE) &&
+					depth < HARD_PLIES && KeepSearching)
+			{
+						return false;
+			}
+			
 			node.score = ScoreBoard (Controlling, node.Board);
+			return true;
+		}
+		else if (KeepSearching == false)
+		{
+			// Disregard nodes that haven't yet been evaluated fully, fudge it
+			// by returning an unfavourable score rather than eliminating it
+			node.score = TurnTaker (depth) == Controlling ? IS_LOSS : IS_WIN;
 			return true;
 		}
 
@@ -184,6 +198,13 @@ public class AIEngine
 		List<ActionChain> turnActions = PlayOneTurn (Controlling, baseChain.Board);
 		NodesEvaluated += turnActions.Count;
 
+		// Since we're unlikely to be able to evaluate all nodes on a cold pass, evaluate them in order
+		// of immediate potential in order to discover the most fruitful nodes first
+		turnActions.ForEach(node => node.score = ScoreBoard(Controlling, node.Board));
+		turnActions.Sort ((a,b) => {
+			return a.score.CompareTo (b.score);}
+		);
+		
 		// execute in parallel for speed boost, shuffle to introduce nondeterminism between same scores
 		int nodesBatch = 100;
 		Parallel.ForEach (Partitioner.Create (0, turnActions.Count, nodesBatch), range => {
@@ -208,14 +229,12 @@ public class AIEngine
 		 */
 	float MinMax (int depth, ActionChain continuesChain)
 	{
-		Player nextTurnTaker = (depth % 2) == 1 ? Controlling.Other() : Controlling; // first turn to evaluate is P2
-			
-		List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.Board);
+		List<ActionChain> turnActions = PlayOneTurn (TurnTaker (depth), continuesChain.Board);
 		NodesEvaluated += turnActions.Count;
 
 		turnActions.ForEach (node => ScoringFn (depth, node));
 
-		if (Controlling == nextTurnTaker)
+		if (Controlling == TurnTaker (depth))
 		{
 			return turnActions.Max (node => node.score);
 		}
@@ -225,6 +244,10 @@ public class AIEngine
 		}
 	}
 
+	private Player TurnTaker (int depth)
+	{
+		return (depth % 2) == 1 ? Controlling.Other() : Controlling; // first turn to evaluate is P2
+	}
 
 	private void RecordNodeInDB (Board board, float p)
 	{
@@ -418,7 +441,8 @@ public class AIEngine
 			foreach (ActionChain pushSet in DoPushes(p, moveSet.Board))
 			{
 				pushSet.Link (moveSet);
-
+				if (pushSet.actions.Last().action == ActionTaken.SKIPPED) pushSet.Board.NotifyWinner(p.Other());
+				
 				allActions.Add (pushSet);
 			}
 		}
@@ -524,24 +548,31 @@ public class AIEngine
 
 		Coords position = pc.Occupies.Pos;
 		if (
-				(position.x == 4 || position.x == 5) &&
+			(position.x == 4 || position.x == 5) &&
 			(position.y == 2 || position.y == 3))
 		{
-			value = 100;
+			if (pc.Type == PieceType.ROUND)
+			{
+				value = 20;
+			}
+			else
+			{
+				value = 10;
+			}
 		}
 		else if (pc.Occupies.Adjacent.Find (tile => tile.Type == BoardSquareType.EDGE) != null)
 		{
 			if (pc.Push.AmIAnchored ())
 			{
-				value = -20;
+				value = -5;
 			}
 			else if (possibleMovesCount == 0 && pc.Push.CheckPushes ().Count == 0)
 			{
-				value = -1000;
+				value = -50;
 			}
 			else
 			{
-				value = -300;
+				value = -20;
 			}
 		}
 		else
@@ -550,15 +581,24 @@ public class AIEngine
 		}
 
 
-		value += possibleMovesCount * 4;
-		value += alliesCount * 10;
+		value += possibleMovesCount * 1;
+		value += alliesCount * 3;
 
 		return value;
 	}
 
 		
 	static float ScoreBoard (Player p, Board brd)
-	{
+	{			
+		if (brd.Winner == p)
+		{
+			return IS_WIN;
+		}
+		else if (brd.Winner == p.Other ())
+		{
+			return IS_LOSS;
+		}
+		
 		List<Piece> myPieces = new List<Piece> ();
 		List<Piece> theirPieces = new List<Piece> ();
 		foreach (Piece pc in brd.Pieces.Values)
@@ -572,11 +612,7 @@ public class AIEngine
 				theirPieces.Add (pc);
 			}
 		}
-			
-		if (brd.Winner == p)
-		{
-			return IS_WIN;
-		}
+
 			
 		float score = 0;
 			

@@ -320,7 +320,7 @@ public class Board
 	}
 
 	  
-	public const int AMT_BOARDS_NEEDED_PER_SEARCH = 3000;
+	public const int AMT_BOARDS_NEEDED_PER_SEARCH = 4000;
 	public static Pooling.Pool<Board> Pool = null;
 
       
