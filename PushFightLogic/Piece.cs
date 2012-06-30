@@ -34,7 +34,7 @@ public class Piece : IEquatable<Piece>
 		if (Occupies.Type == BoardSquareType.EDGE)
 		{
 			Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this));
-			WinnerFn(this.Owner == Player.P1 ? Player.P2 : Player.P1);
+			WinnerFn(this.Owner.Other());
 		}
 	}
 

@@ -265,7 +265,7 @@ public class PushPieceState : TurnState
 
 	public override void Skip ()
 	{
-		Board.NotifyWinner(Context.TurnPlayer == Player.P1 ? Player.P2 : Player.P1);
+		Board.NotifyWinner(Context.TurnPlayer.Other());
 		Context.SwapState (new TurnFinishedState (Context));
 	}
 }
@@ -448,7 +448,7 @@ public class GameMaster
 			return;
 		}
 
-		Player otherPlayer = roundStarter == Player.P1 ? Player.P2 : Player.P1;
+		Player otherPlayer = roundStarter.Other();
 
 		if (Turn.TurnPlayer == roundStarter)
 		{

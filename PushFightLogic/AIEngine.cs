@@ -208,7 +208,7 @@ public class AIEngine
 		 */
 	float MinMax (int depth, ActionChain continuesChain)
 	{
-		Player nextTurnTaker = (depth % 2) == 1 ? Player.P1 : Player.P2; // first turn to evaluate is P2
+		Player nextTurnTaker = (depth % 2) == 1 ? Controlling.Other() : Controlling; // first turn to evaluate is P2
 			
 		List<ActionChain> turnActions = PlayOneTurn (nextTurnTaker, continuesChain.Board);
 		NodesEvaluated += turnActions.Count;

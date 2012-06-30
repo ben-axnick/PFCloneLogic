@@ -19,6 +19,11 @@ public static class Extension
 			list [k] = list [n];
 			list [n] = value;
 		}
+	}    
+	
+	public static Player Other (this Player me)
+	{
+		return me == Player.P1 ? Player.P2 : Player.P1;
 	}
-   }
+}
 }
