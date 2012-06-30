@@ -177,13 +177,17 @@ public class Board
 	private List<Piece> ActualPieces = new List<Piece> (10);
 	public TerritoryFn TerritoryOf;
 
-
 	public int Width { get { return Squares.GetLength (0); } }
 
 
 	public int Height { get { return Squares.GetLength (1); } }
 
 
+	private Board ()
+	{
+		Winner = null;
+	}
+	
 	private void SetSquares (BoardSquare[,] squares, TerritoryFn whatBelongsToWho)
 	{
 		TerritoryOf = whatBelongsToWho;
@@ -217,32 +221,18 @@ public class Board
 			return true;
 		}
 	}
-
-
-	public Player? Winner ()
+	
+	public Player? Winner { get; private set; }
+	public void NotifyWinner (Player winner)
 	{
-		Piece losingPiece = ActualPieces
-               .FirstOrDefault (piece => piece.Occupies.Type == BoardSquareType.EDGE);
-
-		if (losingPiece == null)
-		{ 
-			return null;
-		}
-		else
-		{
-			return losingPiece.Owner == Player.P1 ? Player.P2 : Player.P1;
-		}
+			Winner = winner;
 	}
 
-
 	private bool isDirty = true;
-
-
 	public void NotifyDirty ()
 	{
 		isDirty = true;
 	}
-
 
 	private Dictionary<BoardSquare,Piece> _pieces;
 
@@ -366,6 +356,7 @@ public class Board
 		newBoard.ActualPieces.Clear ();
 		newBoard.TheAnchor.Reset ();
 		newBoard.NotifyDirty ();
+		newBoard.Winner = null;
 	}
 
 

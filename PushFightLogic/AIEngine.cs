@@ -128,7 +128,7 @@ public class AIEngine
 		 */
 	bool ApplyCutoff (ActionChain node, int depth)
 	{
-		Player? thisNodeWinner = node.Board.Winner ();
+		Player? thisNodeWinner = node.Board.Winner;
 
 		if (thisNodeWinner != null)
 		{
@@ -573,7 +573,7 @@ public class AIEngine
 			}
 		}
 			
-		if (brd.Winner () == p)
+		if (brd.Winner == p)
 		{
 			return IS_WIN;
 		}

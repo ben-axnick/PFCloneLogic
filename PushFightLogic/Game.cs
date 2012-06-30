@@ -265,7 +265,7 @@ public class PushPieceState : TurnState
 
 	public override void Skip ()
 	{
-		Board.TheAnchor.Reset ();
+		Board.NotifyWinner(Context.TurnPlayer == Player.P1 ? Player.P2 : Player.P1);
 		Context.SwapState (new TurnFinishedState (Context));
 	}
 }
@@ -442,9 +442,9 @@ public class GameMaster
 		
 	private void TurnOver ()
 	{
-		if (Board.Winner () != null)
+		if (Board.Winner != null)
 		{
-			Messenger<Player>.Invoke ("game.over", Board.Winner ().GetValueOrDefault ());
+			Messenger<Player>.Invoke ("game.over", Board.Winner.GetValueOrDefault ());
 			return;
 		}
 
@@ -464,7 +464,7 @@ public class GameMaster
 
 	public Player? Winner ()
 	{
-		return Board.Winner ();
+		return Board.Winner;
 	}
 
 						

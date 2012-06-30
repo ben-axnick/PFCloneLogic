@@ -23,6 +23,7 @@ public class Piece : IEquatable<Piece>
 
 
 	private Action NotifyFn;
+	private Action<Player> WinnerFn;
 
 
 	public void Place (BoardSquare target)
@@ -33,6 +34,7 @@ public class Piece : IEquatable<Piece>
 		if (Occupies.Type == BoardSquareType.EDGE)
 		{
 			Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this));
+			WinnerFn(this.Owner == Player.P1 ? Player.P2 : Player.P1);
 		}
 	}
 
@@ -112,8 +114,10 @@ public class Piece : IEquatable<Piece>
 			viables.ForEach (i => {
 				if (!upcoming.Contains (i))
 				{
-					upcoming.Enqueue (i);}
-				});
+					upcoming.Enqueue (i);
+				}
+			}
+			);
 		}
 
 		return explored;
@@ -173,7 +177,8 @@ public class Piece : IEquatable<Piece>
 		Type = type;
 		ID = Piece.idCurrent++;
 		NotifyFn = board.NotifyDirty;
-
+		WinnerFn = board.NotifyWinner;
+		
 		if (Type == PieceType.ROUND)
 		{
 			Push = new RoundPiecePushBehaviour ();
@@ -203,6 +208,7 @@ public class Piece : IEquatable<Piece>
 	{
 		Owner = owner;
 		NotifyFn = board.NotifyDirty;
+		WinnerFn = board.NotifyWinner;
 		Occupies = null;
 
 		SquarePiecePushBehaviour squareBehaviour = Push as SquarePiecePushBehaviour;
