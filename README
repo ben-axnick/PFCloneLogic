@@ -1,2 +1,9 @@
-A logical implementation of the PushFight boardgame. Should be located at PushFight\PushFightLogic in order to ensure that default paths are correct.
-Just load the solution up and compile, that will generate all the necessary .dlls inside the pushfight assets directory.
+A logical implementation of the PushFight boardgame. If deploying along with the Unity3d project, it should be located at PushFight\PushFightLogic in order to ensure that the default build paths place the generated .dll files inside the Unity3d project asset path.
+
+COMPILING
+
+Should be a matter of loading the solution in MonoDevelop, or Visual Studio 2010+. This will generate all the necessary .dlls inside the pushfight assets directory.
+
+BASIC USAGE
+
+See Docs to gain a graphical overview of the system. PushFightDriver shows a simple usage situation.

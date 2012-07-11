@@ -1,0 +1,15 @@
+A number of messages are emitted by various components of the system. These messages are intended for assisting in the creation of a GUI such as in the Unity3d game provided.
+
+Board
+ Messenger<GameToken>.Invoke ("piece.placed", GameToken.FromPiece (pieceToPlace));
+
+Game 
+ Messenger<Player>.Invoke ("turn.begin", TurnPlayer); 
+ Messenger<Player>.Invoke ("game.over", Board.Winner.GetValueOrDefault ()); 
+ Messenger.Invoke ("game.begin");
+
+Piece 
+ Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this));
+
+Anchor Messenger<Coords>.Invoke ("piece.anchored", newPiece.Occupies.Pos);
+ Messenger.Invoke ("piece.unanchored");
