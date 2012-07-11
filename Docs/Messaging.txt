@@ -7,9 +7,11 @@ Game
  Messenger<Player>.Invoke ("turn.begin", TurnPlayer); 
  Messenger<Player>.Invoke ("game.over", Board.Winner.GetValueOrDefault ()); 
  Messenger.Invoke ("game.begin");
+ Messenger<Player,string>.Invoke ("turn.phase", TurnPlayer, State.FriendlyName);
 
 Piece 
- Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this));
+ Messenger<GameToken>.Invoke ("piece.outofbounds", GameToken.FromPiece (this)); Messenger<GameToken,Coords>.Invoke ("piece.moving", GameToken.FromPiece (this), target.Pos); Messenger<GameToken,Coords>.Invoke ("piece.displacing", GameToken.FromPiece (this), target.Pos); Messenger<GameToken, Coords>.Invoke ("piece.pushing", GameToken.FromPiece (MyPiece), target.Pos);
 
-Anchor Messenger<Coords>.Invoke ("piece.anchored", newPiece.Occupies.Pos);
+Anchor 
+ Messenger<Coords>.Invoke ("piece.anchored", newPiece.Occupies.Pos);
  Messenger.Invoke ("piece.unanchored");
