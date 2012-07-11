@@ -9,6 +9,9 @@ using System.Collections.Concurrent;
 
 namespace PushFightLogic
 {
+/// <summary>
+/// Provides a MinMax search plus heuristic in order to allow an AI to plan a turn.
+/// </summary>
 public class AIEngine
 {
 	private RaptorDB<string> DB;
@@ -19,7 +22,16 @@ public class AIEngine
 	private List<Action> Instructions = new List<Action> ();
 	private int nextInstruction;
 
-
+	/// <summary>
+	/// A flag set to true whenever Act is called, setting it to false causes the search to be terminated.
+	/// </summary>
+	/// <remarks>
+	/// Note: No guarantees on termination time when the flag is set false - Instructions will change from
+	/// an empty to a populated list when calculations are completed, so check that
+	/// </remarks>
+	/// <value>
+	/// <c>true</c> if keep searching; otherwise, <c>false</c>.
+	/// </value>
 	public bool KeepSearching { get; set; }
 
 
@@ -30,7 +42,18 @@ public class AIEngine
 	}
 
 	private static bool firstRun = true;
-		
+	
+	/// <summary>
+	/// Generate a <c>List<Action></c> of instructions according to the specified phase.
+	/// </summary>
+	/// <param name='phase'>
+	/// Expected to be either "Placement" or "Movement"
+	/// </param>
+	/// <remarks>
+	/// All message passing is disabled whilst the search is underway, as
+	/// the boards generated while searching the space are normal board objects
+	/// that would otherwise emit billions of confusing messages to clients.
+	/// </remarks>
 	public void Act (string phase)
 	{
 		if (firstRun)
@@ -61,7 +84,9 @@ public class AIEngine
 		Messenger.Suppress = false;
 	}
 
-		
+	/// <summary>
+	/// The placement process involves no search, it always generates the same 5 placement instructions.
+	/// </summary>
 	void DoPlacement ()
 	{
 		Instructions.Clear ();
@@ -81,10 +106,17 @@ public class AIEngine
 	const float IS_WIN = 100000;
 	const float IS_LOSS = -100000;
 
-		
+	/// <summary>
+	/// Query to evaluate how far along the search process has come
+	/// </summary>
+	/// <value>
+	/// Number of terminal nodes reached so far
+	/// </value>
 	public int NodesEvaluated  { get; private set; }
 
-
+	/// <summary>
+	/// Initiates the MinMax search, verifies the results, then stores the actions to be taken via <c>StoreBestAction</c>
+	/// </summary>
 	void DoMinMax ()
 	{
 		DebugFn ("Determining all possible plays");
@@ -112,6 +144,12 @@ public class AIEngine
 	}
 
 
+	/// <summary>
+	/// Convenience method that steps through the instructions set for the client
+	/// </summary>
+	/// <returns>
+	/// False, once no more intstructions are available
+	/// </returns>
 	public bool ExecuteNextInstruction ()
 	{
 		if (nextInstruction < Instructions.Count)
@@ -125,8 +163,18 @@ public class AIEngine
 		}
 	}
 
-
+	/// <summary>
+	/// Number of turns to look ahead, this is extremely prohibitive in PushFight.
+	/// </summary>
+	/// <example>
+	/// Setting this to 1 checks all possible moves then all possible responses.
+	/// The search space is ~700,000 nodes
+	/// </example>
 	const int SOFT_PLIES = 1;
+	
+	/// <summary>
+	/// When any board piece is on the edge, nodes will not be considered terminal until they are this deep
+	/// </summary>
 	const int HARD_PLIES = 2;
 
 	/**
@@ -165,9 +213,9 @@ public class AIEngine
 		return false;
 	}
 
-	/**
-		 * Determine a score by applying the scoring function, looking up the database, or recursing deeper.
-		 */
+	/// <summary>
+	/// Determine a score by applying the scoring function, looking up the database, or recursing deeper.
+	/// </summary>
 	void ScoringFn (int depth, ActionChain node)
 	{
 		byte[] dbrec = new byte[4];
@@ -197,9 +245,9 @@ public class AIEngine
 		node.ClearBoard ();
 	}
 
-	/**
-		 * The base level minmax function, which utilises a different return type and parellelises the search
-		 */
+	/// <summary>
+	/// The base level minmax function, which utilises a different return type and parellelises the search
+	/// </summary>
 	ActionChain MinMax0 (ActionChain baseChain)
 	{
 		List<ActionChain> turnActions = PlayOneTurn (Controlling, baseChain.Board);
@@ -231,9 +279,9 @@ public class AIEngine
 		return turnActions.Last ();
 	}
 
-	/**
-		 * Recursively called to determine the utility of every move available up to MAX_PLIES
-		 */
+	/// <summary>
+	/// Recursively called to determine the utility of every move available up to MAX_PLIES
+	/// </summary>
 	float MinMax (int depth, ActionChain continuesChain)
 	{
 		List<ActionChain> turnActions = PlayOneTurn (TurnTaker (depth), continuesChain.Board);
