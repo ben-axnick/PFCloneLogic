@@ -60,12 +60,16 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Board.cs" />
-    <Compile Include="Extension.cs" />
-    <Compile Include="Game.cs" />
     <Compile Include="Piece.cs" />
     <Compile Include="Anchor.cs" />
     <Compile Include="AIEngine.cs" />
     <Compile Include="Pool.cs" />
+    <Compile Include="GameControls.cs" />
+    <Compile Include="GameTurn.cs" />
+    <Compile Include="GameMaster.cs" />
+    <Compile Include="ShuffleForListExtension.cs" />
+    <Compile Include="BasicInteractionTypes.cs" />
+    <Compile Include="BoardSquare.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>

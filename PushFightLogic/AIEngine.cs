@@ -29,9 +29,16 @@ public class AIEngine
 		DB = RaptorDB<string>.Open (System.IO.Path.GetFullPath (DB_PATH), false);
 	}
 
+	private static bool firstRun = true;
 		
 	public void Act (string phase)
 	{
+		if (firstRun)
+		{
+			firstRun = false;
+			Master.AIPools();
+		}
+		
 		if (Master.Turn.TurnPlayer != Controlling)
 		{
 			throw new NotSupportedException ("The AI only plays for P2 position currently");
